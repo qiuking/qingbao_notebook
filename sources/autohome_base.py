@@ -30,6 +30,12 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from push_to_processor import (
+    RateLimiter,
+    push_article,
+    push_status_done,
+)
+
 TZ_CN = timezone(timedelta(hours=8))
 
 _UA_POOL = [
@@ -53,6 +59,7 @@ class SourceConfig:
     source_url: str
     max_content_per_run: int = 8
     delay_range: tuple[float, float] = (5.0, 10.0)
+    push_max_per_sec: float = 3.0   # 推送限速：每秒最多N次
 
 
 # ---------------------------------------------------------------------------
@@ -444,6 +451,7 @@ def run(cfg: SourceConfig) -> dict:
 
     success_count = 0
     fail_count = 0
+    push_limiter = RateLimiter(cfg.push_max_per_sec)
 
     if batch:
         log.info("[步骤4] 全文获取 batch=%d pending_total=%d deferred=%d",
@@ -466,9 +474,31 @@ def run(cfg: SourceConfig) -> dict:
                 fp = _save_article_file(content, paths, log)
                 article["content_fetched"] = True
                 article["content_file"] = fp.name
+                article["_content"] = content
                 success_count += 1
                 log.info("全文获取成功 id=%s chars=%d file=%s",
                          article["id"], len(content["content_text"]), fp.name)
+
+                status = push_article(
+                    source_id=cfg.source_id,
+                    source_name=cfg.source_name,
+                    origin_id=article["id"],
+                    title=content["title"],
+                    summary=content.get("summary", ""),
+                    content_text=content["content_text"],
+                    content_html=content["content_html"],
+                    author=content.get("author", ""),
+                    source_url=content["url"],
+                    publish_time=content.get("publish_time", ""),
+                    fetch_time=content.get("fetch_time", ""),
+                    log=log,
+                    rate_limiter=push_limiter,
+                )
+                article["push_status"] = status
+                if not push_status_done(status):
+                    log.warning("推送未成功 id=%s status=%s 将在补推阶段重试", article["id"], status)
+                else:
+                    log.info("推送成功 id=%s status=%s", article["id"], status)
             else:
                 article["content_fetched"] = False
                 article["content_file"] = None
@@ -496,9 +526,56 @@ def run(cfg: SourceConfig) -> dict:
             "first_seen": old.get("first_seen", now.strftime("%Y-%m-%d %H:%M:%S")),
             "content_fetched": a.get("content_fetched", old.get("content_fetched", False)),
             "content_file": a.get("content_file", old.get("content_file")),
+            "push_status": a.get("push_status", old.get("push_status", "")),
         }
 
     _save_history(history, cfg, paths, log)
+
+    # ---- 步骤5.5: 补推未推送成功的条目（仅 status 非 ok/exists 时重试）----
+    unpushed = [
+        h for h in history.values()
+        if h.get("content_fetched") and not push_status_done(h.get("push_status", ""))
+    ]
+    push_ok_count = 0
+    push_fail_count = 0
+    if unpushed:
+        log.info("[步骤5.5] 补推未推送条目 count=%d", len(unpushed))
+        for item in unpushed:
+            content_file = paths["articles"] / f"{item['id']}.json"
+            if not content_file.exists():
+                log.warning("补推跳过: 全文文件不存在 id=%s", item["id"])
+                push_fail_count += 1
+                continue
+
+            content = json.loads(content_file.read_text(encoding="utf-8"))
+            status = push_article(
+                source_id=cfg.source_id,
+                source_name=cfg.source_name,
+                origin_id=item["id"],
+                title=content.get("title", item["title"]),
+                summary=content.get("summary", item.get("summary", "")),
+                content_text=content.get("content_text", ""),
+                content_html=content.get("content_html", ""),
+                author=content.get("author", ""),
+                source_url=content.get("url", item.get("url", "")),
+                publish_time=content.get("publish_time", item.get("publish_time", "")),
+                fetch_time=content.get("fetch_time", ""),
+                log=log,
+                rate_limiter=push_limiter,
+            )
+
+            item["push_status"] = status
+            if push_status_done(status):
+                push_ok_count += 1
+                log.info("补推成功 id=%s status=%s", item["id"], status)
+            else:
+                push_fail_count += 1
+                log.warning("补推失败 id=%s status=%s", item["id"], status)
+
+        _save_history(history, cfg, paths, log)
+        log.info("补推完成 成功=%d 失败=%d", push_ok_count, push_fail_count)
+    else:
+        log.info("[步骤5.5] 无需补推")
 
     # ---- 步骤6: 输出本轮结果 ----
     seen: set[str] = set()
@@ -519,10 +596,15 @@ def run(cfg: SourceConfig) -> dict:
                 "is_new": a["id"] in new_ids,
                 "content_fetched": h.get("content_fetched", False),
                 "content_file": h.get("content_file"),
+                "push_status": h.get("push_status", ""),
             })
 
     unfetched_in_history = sum(
         1 for h in history.values() if not h.get("content_fetched")
+    )
+    unpushed_in_history = sum(
+        1 for h in history.values()
+        if h.get("content_fetched") and not push_status_done(h.get("push_status", ""))
     )
 
     result = {
@@ -536,6 +618,9 @@ def run(cfg: SourceConfig) -> dict:
             "content_fetch_success": success_count,
             "content_fetch_fail": fail_count,
             "content_pending": unfetched_in_history,
+            "push_retry_ok": push_ok_count,
+            "push_retry_fail": push_fail_count,
+            "push_pending": unpushed_in_history,
             "output_count": len(merged),
             "history_total": len(history),
         },
@@ -552,6 +637,8 @@ def run(cfg: SourceConfig) -> dict:
              len(articles), len(articles_24h), len(new_articles))
     log.info("全文: 成功=%d 失败=%d 待补获=%d",
              success_count, fail_count, unfetched_in_history)
+    log.info("推送: 补推成功=%d 补推失败=%d 待推送=%d",
+             push_ok_count, push_fail_count, unpushed_in_history)
     log.info("历史累计=%d 本轮输出=%d", len(history), len(merged))
     log.info("数据目录: %s", paths["base"])
     log.info("========== 运行结束 run=%s ==========", run_id)

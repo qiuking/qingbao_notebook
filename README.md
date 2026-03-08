@@ -1,10 +1,19 @@
 # qbNoteBook — 情报获取与分析平台
 
-AI领域情报的自动化采集、分析与输出平台。
+情报的自动化采集、处理与分发平台。
 
-## 功能模块
+## 平台架构
 
-### 情报源采集
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│  情报获取    │────▶│  情报处理    │────▶│  情报分发    │
+│  sources/    │     │  processor/  │     │  (规划中)    │
+└─────────────┘     └─────────────┘     └─────────────┘
+```
+
+三大模块相对独立，支持插拔使用。
+
+## 模块一：情报获取 (`sources/`)
 
 | 情报源 | 模块 | 引擎 | 状态 |
 |---|---|---|---|
@@ -12,40 +21,7 @@ AI领域情报的自动化采集、分析与输出平台。
 | 36氪汽车资讯 | `sources/kr36_travel.py` | `kr36_base.py` | ✅ 已完成 |
 | 汽车之家全部资讯 | `sources/autohome_all.py` | `autohome_base.py` | ✅ 已完成 |
 
-### 架构设计
-
-```
-sources/
-  kr36_base.py       ← 36氪通用抓取引擎（共享逻辑）
-  kr36_ai.py          ← 36氪AI频道（配置入口）
-  kr36_travel.py      ← 36氪汽车频道（配置入口）
-  autohome_base.py   ← 汽车之家通用抓取引擎（共享逻辑）
-  autohome_all.py     ← 汽车之家全部资讯（配置入口）
-
-data/                 ← 运行时数据（各源独立目录）
-  kr36_ai/
-    history.json      — 累积历史记录
-    latest.json       — 本轮运行结果
-    articles/         — 全文存档
-    logs/
-      kr36_ai.log     — 日志（按天轮转，保留30天）
-  kr36_travel/
-    ...（同上结构）
-  autohome_all/
-    ...（同上结构）
-```
-
-新增情报源只需创建一个配置文件即可，无需重复编写抓取逻辑。
-
-### 核心特性
-
-- **增量采集** — 基于历史记录比对，仅处理新增条目
-- **反爬对抗** — UA轮换、随机延迟、Referer伪装、验证码检测
-- **渐进全文** — 每轮限量获取全文，遇反爬立即停止，下轮自动继续
-- **数据隔离** — 每个情报源独立目录，日志/输出/全文互不干扰
-- **日志系统** — 双通道输出（控制台INFO + 文件DEBUG），按天轮转
-
-## 运行方式
+**核心特性：** 增量采集、反爬对抗、渐进全文、数据隔离、按天轮转日志、全文获取后自动推送至 processor 入库
 
 ```bash
 # 运行单个情报源
@@ -54,10 +30,98 @@ uv run sources/kr36_travel.py
 uv run sources/autohome_all.py
 ```
 
+## 模块二：情报处理 (`processor/`)
+
+基于 FastAPI + SQLite 的 Web 服务，接收各情报源抓取结果并提供结构化存储与查询。
+
+### 认证
+
+写操作（POST/PATCH/DELETE）需要 API Key 认证，读操作（GET）保持开放。
+
+- 首次启动服务时自动在 `.env` 文件中生成 `PROCESSOR_API_KEY`
+- 请求时通过 `X-API-Key` 请求头传递
+- sources 脚本自动读取 `.env` 中的 Key 进行推送，无需手动配置
+
+### API 概览
+
+| 方法 | 路径 | 功能 |
+|---|---|---|
+| 方法 | 路径 | 认证 | 功能 |
+|---|---|---|---|
+| `POST` | `/articles` | 需要 | 单条入库 |
+| `POST` | `/articles/batch` | 需要 | 批量入库（自动去重） |
+| `POST` | `/articles/check-duplicates` | 需要 | 查重检测 |
+| `GET` | `/articles` | 不需要 | 分页查询（支持按来源/关键词/作者/时间过滤） |
+| `GET` | `/articles/{id}` | 不需要 | 单条读取 |
+| `PATCH` | `/articles/{id}` | 需要 | 部分修改 |
+| `DELETE` | `/articles/{id}` | 需要 | 删除 |
+| `GET` | `/stats` | 不需要 | 统计概览 |
+
+### 入库字段
+
+| 字段 | 说明 |
+|---|---|
+| `source_id` | 情报源标识（如 `kr36_ai`） |
+| `source_name` | 情报源显示名 |
+| `origin_id` | 源站文章ID（与 source_id 联合去重） |
+| `title` | 标题 |
+| `summary` | 摘要 |
+| `content_text` | 正文纯文本 |
+| `content_html` | 正文原始HTML |
+| `author` | 作者 |
+| `source_url` | 原文网址 |
+| `publish_time` | 消息发布时间 |
+| `fetch_time` | 抓取时间 |
+
+### 启动服务
+
+```bash
+uv run uvicorn processor.app:app --host 0.0.0.0 --port 8000
+
+# 开发模式（自动重载）
+uv run uvicorn processor.app:app --host 0.0.0.0 --port 8000 --reload
+```
+
+启动后访问 http://localhost:8000/docs 查看交互式 API 文档。
+
+### 存储
+
+- 数据库文件：`data_server/intelligence.db`（SQLite）
+- 自动建表，零配置
+- WAL 模式，支持并发读取
+
+## 目录结构
+
+```
+sources/
+  push_to_processor.py ← 推送公用模块（读取 .env 认证并发送到 processor）
+  kr36_base.py         ← 36氪通用抓取引擎
+  kr36_ai.py            ← 36氪AI频道
+  kr36_travel.py        ← 36氪汽车频道
+  autohome_base.py     ← 汽车之家通用抓取引擎
+  autohome_all.py       ← 汽车之家全部资讯
+
+processor/
+  app.py               ← FastAPI 主服务
+  auth.py              ← API Key 认证
+  database.py          ← SQLite 数据库管理
+  schemas.py           ← Pydantic 数据模型
+
+data/                  ← 情报源运行时数据
+  kr36_ai/             — 36氪AI数据
+  kr36_travel/         — 36氪汽车数据
+  autohome_all/        — 汽车之家数据
+
+data_server/            ← 情报处理服务数据
+  intelligence.db       — 情报数据库
+
+.env                    ← API Key 等配置（自动生成，不入版本库）
+```
+
 ## 环境要求
 
 - Python >= 3.14
-- 无第三方依赖（仅使用标准库）
+- 依赖：fastapi, uvicorn
 
 ## 安装
 
