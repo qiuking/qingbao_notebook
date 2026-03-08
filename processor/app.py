@@ -3,6 +3,7 @@
 
 提供 RESTful API 接收各 source 抓取结果并进行结构化存储。
 支持：入库、批量入库、查重、查询、分页、搜索、修改、删除。
+同时提供 Web 前端界面，支持数据可视化与趋势分析。
 
 启动方式:
     uv run uvicorn processor.app:app --host 0.0.0.0 --port 8000 --reload
@@ -10,8 +11,12 @@
 
 import sqlite3
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from .auth import require_api_key
 from .database import get_db, init_db
@@ -24,6 +29,9 @@ from .schemas import (
     BatchCreateResult,
     DuplicateCheckResult,
 )
+
+# 前端静态文件目录
+_STATIC_DIR = Path(__file__).parent / "static"
 
 
 @asynccontextmanager
@@ -248,3 +256,129 @@ def get_stats(conn: sqlite3.Connection = Depends(get_db)):
         "total_articles": total,
         "sources": [dict(r) for r in sources],
     }
+
+
+# ---------------------------------------------------------------------------
+# 趋势分析
+# ---------------------------------------------------------------------------
+
+@app.get("/api/trend/daily")
+def get_daily_trend(
+    days: int = Query(30, ge=7, le=90, description="查询天数"),
+    source_id: str | None = Query(None, description="按情报源过滤"),
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    """获取每日文章数量趋势"""
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=days)
+
+    where = "WHERE publish_time >= ?"
+    params = [start_date.strftime("%Y-%m-%d")]
+    if source_id:
+        where += " AND source_id = ?"
+        params.append(source_id)
+
+    sql = f"""
+        SELECT DATE(publish_time) as date, COUNT(*) as count
+        FROM articles {where}
+        GROUP BY DATE(publish_time)
+        ORDER BY date
+    """
+    rows = conn.execute(sql, params).fetchall()
+
+    # 补齐缺失的日期
+    date_counts = {dict(r)["date"]: dict(r)["count"] for r in rows}
+    result = []
+    current = start_date
+    while current <= end_date:
+        date_str = current.strftime("%Y-%m-%d")
+        result.append({"date": date_str, "count": date_counts.get(date_str, 0)})
+        current += timedelta(days=1)
+
+    return result
+
+
+@app.get("/api/trend/by-source")
+def get_source_trend(
+    days: int = Query(30, ge=7, le=90),
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    """获取各数据源的每日趋势"""
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=days)
+
+    sql = """
+        SELECT DATE(publish_time) as date, source_id, source_name, COUNT(*) as count
+        FROM articles
+        WHERE publish_time >= ?
+        GROUP BY DATE(publish_time), source_id
+        ORDER BY date, source_id
+    """
+    rows = conn.execute(sql, [start_date.strftime("%Y-%m-%d")]).fetchall()
+
+    # 按日期分组
+    trend: dict = {}
+    for r in rows:
+        d = dict(r)
+        date = d["date"]
+        if date not in trend:
+            trend[date] = []
+        trend[date].append({
+            "source_id": d["source_id"],
+            "source_name": d["source_name"],
+            "count": d["count"],
+        })
+
+    return {"start_date": start_date.strftime("%Y-%m-%d"), "end_date": end_date.strftime("%Y-%m-%d"), "trend": trend}
+
+
+@app.get("/api/groups")
+def get_groups(conn: sqlite3.Connection = Depends(get_db)):
+    """获取所有分组（数据源分组信息）"""
+    rows = conn.execute("""
+        SELECT source_id, source_name, COUNT(*) as count,
+               MIN(publish_time) as earliest,
+               MAX(publish_time) as latest
+        FROM articles
+        GROUP BY source_id
+        ORDER BY count DESC
+    """).fetchall()
+
+    groups = []
+    for r in rows:
+        d = dict(r)
+        groups.append({
+            "source_id": d["source_id"],
+            "source_name": d["source_name"] or d["source_id"],
+            "count": d["count"],
+            "earliest": d["earliest"],
+            "latest": d["latest"],
+        })
+    return groups
+
+
+# ---------------------------------------------------------------------------
+# 前端页面
+# ---------------------------------------------------------------------------
+
+@app.get("/", response_class=HTMLResponse)
+def index():
+    """主页面"""
+    static_index = _STATIC_DIR / "index.html"
+    if static_index.exists():
+        return static_index.read_text(encoding="utf-8")
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head><title>qbNoteBook 数据中心</title></head>
+    <body>
+        <h1>qbNoteBook 数据中心</h1>
+        <p>静态文件未找到，请确保 processor/static/index.html 存在</p>
+    </body>
+    </html>
+    """
+
+
+# 挂载静态文件目录
+if _STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")

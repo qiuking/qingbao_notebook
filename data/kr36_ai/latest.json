@@ -1,0 +1,153 @@
+{
+  "meta": {
+    "source_name": "36氪AI资讯",
+    "source_url": "https://36kr.com/information/AI/",
+    "fetch_time": "2026-03-09 01:35:47",
+    "total_on_page": 30,
+    "within_24h": 11,
+    "new_articles": 0,
+    "content_fetch_success": 0,
+    "content_fetch_fail": 0,
+    "captcha_triggered": false,
+    "content_pending": 3,
+    "push_retry_ok": 0,
+    "push_retry_fail": 0,
+    "push_pending": 0,
+    "output_count": 11,
+    "history_total": 33
+  },
+  "articles": [
+    {
+      "id": "3713882515403142",
+      "title": "清华公布毕业生去向 : 出国比例仅8.5%，华为字节是最大赢家",
+      "summary": "京外就业已成为常态",
+      "url": "https://36kr.com/p/3713882515403142",
+      "source": "量子位",
+      "publish_time": "2026-03-08 17:43",
+      "is_new": false,
+      "content_fetched": true,
+      "content_file": "3713882515403142.json",
+      "push_status": "ok"
+    },
+    {
+      "id": "3713983582662788",
+      "title": "00后小孩哥10天AI编程，陈天桥24小时砸3000万！靠大四作业当上CEO",
+      "summary": "一个人做出全球爆款的「超级个体」时代，真的来了。",
+      "url": "https://36kr.com/p/3713983582662788",
+      "source": "新智元",
+      "publish_time": "2026-03-08 17:17",
+      "is_new": false,
+      "content_fetched": true,
+      "content_file": "3713983582662788.json",
+      "push_status": "ok"
+    },
+    {
+      "id": "3714020694061185",
+      "title": "AI时代 , 长视频平台在存亡边缘苦苦挣扎",
+      "summary": "AI短剧/漫剧会进一步敲响长视频平台的丧钟吗？我倒是没那么悲观。",
+      "url": "https://36kr.com/p/3714020694061185",
+      "source": "互联网怪盗团",
+      "publish_time": "2026-03-08 16:43",
+      "is_new": false,
+      "content_fetched": true,
+      "content_file": "3714020694061185.json",
+      "push_status": "ok"
+    },
+    {
+      "id": "3714009108001160",
+      "title": "赛道牛股频出 , 下一个千亿龙头是它？",
+      "summary": "电力—算力—Token",
+      "url": "https://36kr.com/p/3714009108001160",
+      "source": "格隆汇",
+      "publish_time": "2026-03-08 16:19",
+      "is_new": false,
+      "content_fetched": true,
+      "content_file": "3714009108001160.json",
+      "push_status": "ok"
+    },
+    {
+      "id": "3713649387237894",
+      "title": "别嘲笑那个养龙虾的人",
+      "summary": "所有高手，都曾是小白",
+      "url": "https://36kr.com/p/3713649387237894",
+      "source": "南七道",
+      "publish_time": "2026-03-08 15:33",
+      "is_new": false,
+      "content_fetched": true,
+      "content_file": "3713649387237894.json",
+      "push_status": "ok"
+    },
+    {
+      "id": "3713798535049600",
+      "title": "为什么“从1数到10”这件事，所有视频模型都不会？",
+      "summary": "AI 已经学会了电影的视觉语法，但还没学会世界的物理语法。",
+      "url": "https://36kr.com/p/3713798535049600",
+      "source": "极客公园",
+      "publish_time": "2026-03-08 13:40",
+      "is_new": false,
+      "content_fetched": true,
+      "content_file": "3713798535049600.json",
+      "push_status": "ok"
+    },
+    {
+      "id": "3713744089477889",
+      "title": "林俊旸离职后，再看阿里字节的 AI 路线之争",
+      "summary": "不管开源闭源，都在向AI要明天",
+      "url": "https://36kr.com/p/3713744089477889",
+      "source": "字母AI",
+      "publish_time": "2026-03-08 12:44",
+      "is_new": false,
+      "content_fetched": true,
+      "content_file": "3713744089477889.json",
+      "push_status": "ok"
+    },
+    {
+      "id": "3712770888282624",
+      "title": "AI囚徒：当算法成为枷锁，人们如何在智能时代找回自我？",
+      "summary": "然而，当罗振宇、刘润等布道者，傅盛、周鸿祎等一众互联网大佬疯狂鼓吹AI、智能体甚至是各种龙虾养起来时，几乎所有人都被卷进AI的牢笼。",
+      "url": "https://36kr.com/p/3712770888282624",
+      "source": "易方寒",
+      "publish_time": "2026-03-08 11:10",
+      "is_new": false,
+      "content_fetched": true,
+      "content_file": "3712770888282624.json",
+      "push_status": "ok"
+    },
+    {
+      "id": "3713633084125321",
+      "title": "OpenClaw掀起龙虾热：行动ASI奇点时刻！全球打工人巨变",
+      "summary": "从编程奇点到行动奇点——一场改变所有人工作方式的革命正在发生。",
+      "url": "https://36kr.com/p/3713633084125321",
+      "source": "新智元",
+      "publish_time": "2026-03-08 10:10",
+      "is_new": false,
+      "content_fetched": true,
+      "content_file": "3713633084125321.json",
+      "push_status": "ok"
+    },
+    {
+      "id": "3713629026972034",
+      "title": "90 后女首富诞生",
+      "summary": "自由人生。",
+      "url": "https://36kr.com/p/3713629026972034",
+      "source": "投资界",
+      "publish_time": "2026-03-08 09:45",
+      "is_new": false,
+      "content_fetched": true,
+      "content_file": "3713629026972034.json",
+      "push_status": "ok"
+    },
+    {
+      "id": "3713110189110024",
+      "title": "林俊旸会去哪？",
+      "summary": "对一代天才型技术人来说，这个故事也远未结束。",
+      "url": "https://36kr.com/p/3713110189110024",
+      "source": "版面之外",
+      "publish_time": "2026-03-08 09:00",
+      "is_new": false,
+      "content_fetched": true,
+      "content_file": "3713110189110024.json",
+      "push_status": "ok"
+    }
+  ]
+}

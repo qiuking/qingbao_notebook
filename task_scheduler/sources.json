@@ -1,0 +1,23 @@
+{
+  "comment": "数据源配置文件，每个周期会重新读取",
+  "sources": [
+    {
+      "id": "kr36_ai",
+      "group": "36kr.com",
+      "command": "python sources/kr36_ai.py",
+      "enabled": true
+    },
+    {
+      "id": "kr36_travel",
+      "group": "36kr.com",
+      "command": "python sources/kr36_travel.py",
+      "enabled": true
+    },
+    {
+      "id": "autohome_all",
+      "group": "autohome.com.cn",
+      "command": "python sources/autohome_all.py",
+      "enabled": true
+    }
+  ]
+}
