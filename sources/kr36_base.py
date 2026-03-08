@@ -1,0 +1,513 @@
+"""
+36氪资讯通用抓取引擎
+
+所有36氪频道共用的抓取、解析、存储、日志逻辑。
+各频道脚本（kr36_ai.py、kr36_travel.py 等）只需提供配置参数即可。
+
+每个 source 的数据完全隔离在各自目录中:
+  data/{source_id}/
+    history.json       — 累积历史记录
+    latest.json        — 本轮运行结果
+    articles/          — 全文存档
+    logs/
+      {source_id}.log  — 运行日志（按天轮转，保留30天）
+"""
+
+import json
+import logging
+import random
+import re
+import sys
+import time
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
+TZ_CN = timezone(timedelta(hours=8))
+
+ARTICLE_URL_TPL = "https://36kr.com/p/{item_id}"
+
+_UA_POOL = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.4 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0",
+]
+
+
+# ---------------------------------------------------------------------------
+# 配置
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class SourceConfig:
+    source_id: str          # 唯一标识，如 "kr36_ai"，决定数据目录名
+    source_name: str        # 显示名，如 "36氪AI资讯"
+    source_url: str         # 列表页URL
+    max_content_per_run: int = 8
+    delay_range: tuple[float, float] = (5.0, 10.0)
+
+
+# ---------------------------------------------------------------------------
+# 路径管理 — 每个 source 独立目录
+# ---------------------------------------------------------------------------
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _get_paths(cfg: SourceConfig) -> dict[str, Path]:
+    base = _PROJECT_ROOT / "data" / cfg.source_id
+    logs = base / "logs"
+    articles = base / "articles"
+    return {
+        "base": base,
+        "history": base / "history.json",
+        "latest": base / "latest.json",
+        "articles": articles,
+        "logs": logs,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 日志 — 每个 source 独立 logger + 独立日志文件
+# ---------------------------------------------------------------------------
+
+_initialized_loggers: set[str] = set()
+
+
+def _get_logger(cfg: SourceConfig, paths: dict[str, Path]) -> logging.Logger:
+    if cfg.source_id in _initialized_loggers:
+        return logging.getLogger(cfg.source_id)
+
+    paths["logs"].mkdir(parents=True, exist_ok=True)
+
+    logger = logging.getLogger(cfg.source_id)
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
+
+    fmt = logging.Formatter(
+        fmt="%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    fh = TimedRotatingFileHandler(
+        paths["logs"] / f"{cfg.source_id}.log",
+        when="midnight", interval=1, backupCount=30, encoding="utf-8",
+    )
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(fmt)
+    fh.suffix = "%Y-%m-%d"
+
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.INFO)
+    ch.setFormatter(fmt)
+
+    logger.addHandler(fh)
+    logger.addHandler(ch)
+
+    _initialized_loggers.add(cfg.source_id)
+    return logger
+
+
+# ---------------------------------------------------------------------------
+# HTTP — 反爬 + 重试
+# ---------------------------------------------------------------------------
+
+def _build_headers(*, referer: str | None = None) -> dict[str, str]:
+    headers = {
+        "User-Agent": random.choice(_UA_POOL),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Accept-Encoding": "identity",
+        "Connection": "keep-alive",
+        "Cache-Control": "max-age=0",
+    }
+    if referer:
+        headers["Referer"] = referer
+    return headers
+
+
+def _is_captcha_page(html: str) -> bool:
+    if len(html) < 3000 and ("captcha" in html.lower() or "TTGCaptcha" in html):
+        return True
+    if "verify_event" in html and "sec_sdk" in html:
+        return True
+    return False
+
+
+def _fetch(url: str, log: logging.Logger, *,
+           referer: str | None = None, retries: int = 2) -> str | None:
+    for attempt in range(1, retries + 2):
+        try:
+            req = Request(url, headers=_build_headers(referer=referer))
+            t0 = time.monotonic()
+            with urlopen(req, timeout=20) as resp:
+                html = resp.read().decode("utf-8")
+            elapsed = time.monotonic() - t0
+            log.debug("HTTP GET %s -> %d bytes, %.2fs", url, len(html), elapsed)
+
+            if _is_captcha_page(html):
+                log.warning("验证码拦截 url=%s html_len=%d", url, len(html))
+                return None
+            return html
+        except (URLError, HTTPError, TimeoutError) as exc:
+            if attempt <= retries:
+                wait = 4 * attempt + random.uniform(1, 3)
+                log.warning("请求失败 attempt=%d/%d url=%s error=%s 等待%.1fs",
+                            attempt, retries, url, exc, wait)
+                time.sleep(wait)
+            else:
+                log.error("请求彻底失败 url=%s error=%s", url, exc)
+                raise
+    return None
+
+
+# ---------------------------------------------------------------------------
+# 解析
+# ---------------------------------------------------------------------------
+
+def _extract_json_array(html: str, marker: str) -> list[dict]:
+    start = html.find(marker)
+    if start < 0:
+        return []
+    arr_start = html.index("[", start)
+    depth = 0
+    for i, ch in enumerate(html[arr_start:arr_start + 200_000]):
+        if ch == "[":
+            depth += 1
+        elif ch == "]":
+            depth -= 1
+            if depth == 0:
+                return json.loads(html[arr_start:arr_start + i + 1])
+    return []
+
+
+def _extract_json_object(html: str, marker: str) -> dict:
+    idx = html.find(marker)
+    if idx < 0:
+        return {}
+    obj_start = html.index("{", idx + len(marker))
+    depth = 0
+    for i, ch in enumerate(html[obj_start:obj_start + 200_000]):
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return json.loads(html[obj_start:obj_start + i + 1])
+    return {}
+
+
+def _ts_to_str(ts_ms: int) -> str:
+    return datetime.fromtimestamp(ts_ms / 1000, tz=TZ_CN).strftime("%Y-%m-%d %H:%M")
+
+
+def _is_within_24h(ts_ms: int, now: datetime) -> bool:
+    return (now - datetime.fromtimestamp(ts_ms / 1000, tz=TZ_CN)) <= timedelta(hours=24)
+
+
+def _parse_list_page(html: str) -> list[dict]:
+    items = _extract_json_array(html, '"itemList":[')
+    articles = []
+    for item in items:
+        tm = item.get("templateMaterial", {})
+        item_id = str(tm.get("itemId") or item.get("itemId", ""))
+        title = tm.get("widgetTitle", "").strip()
+        if not item_id or not title:
+            continue
+        articles.append({
+            "id": item_id,
+            "title": title,
+            "summary": tm.get("summary", "").strip(),
+            "url": ARTICLE_URL_TPL.format(item_id=item_id),
+            "source": tm.get("authorName", "").strip() or "36氪",
+            "publish_time": _ts_to_str(tm.get("publishTime", 0)),
+            "timestamp": tm.get("publishTime", 0),
+        })
+    return articles
+
+
+def _html_to_text(html_content: str) -> str:
+    text = re.sub(r'<br\s*/?>', '\n', html_content)
+    text = re.sub(r'</p>', '\n\n', text)
+    text = re.sub(r'</h[1-6]>', '\n\n', text)
+    text = re.sub(r'</li>', '\n', text)
+    text = re.sub(r'<[^>]+>', '', text)
+    for entity, char in [("&nbsp;", " "), ("&lt;", "<"), ("&gt;", ">"),
+                          ("&amp;", "&"), ("&quot;", '"'), ("&#39;", "'")]:
+        text = text.replace(entity, char)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+
+class CaptchaTriggered(Exception):
+    pass
+
+
+def _fetch_article_content(article: dict, cfg: SourceConfig,
+                           log: logging.Logger) -> dict | None:
+    try:
+        html = _fetch(article["url"], log, referer=cfg.source_url)
+    except Exception as exc:
+        log.error("全文获取网络异常 id=%s title=%s error=%s",
+                  article["id"], article["title"], exc)
+        return None
+
+    if html is None:
+        log.warning("全文获取触发验证码 id=%s url=%s", article["id"], article["url"])
+        raise CaptchaTriggered(article["url"])
+
+    detail = _extract_json_object(html, '"articleDetailData":')
+    data = detail.get("data", {})
+    content_html = data.get("widgetContent", "")
+    if not content_html:
+        log.warning("全文提取失败(正文为空) id=%s title=%s", article["id"], article["title"])
+        return None
+
+    return {
+        "id": article["id"],
+        "title": data.get("widgetTitle", article["title"]),
+        "author": data.get("author", article["source"]),
+        "publish_time": article["publish_time"],
+        "url": article["url"],
+        "summary": data.get("summary", article["summary"]),
+        "content_html": content_html,
+        "content_text": _html_to_text(content_html),
+        "fetch_time": datetime.now(tz=TZ_CN).strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
+# ---------------------------------------------------------------------------
+# 历史记录
+# ---------------------------------------------------------------------------
+
+def _load_history(paths: dict[str, Path], log: logging.Logger) -> dict[str, dict]:
+    hf = paths["history"]
+    if not hf.exists():
+        log.debug("历史文件不存在，首次运行")
+        return {}
+    try:
+        data = json.loads(hf.read_text(encoding="utf-8"))
+        history = {a["id"]: a for a in data.get("articles", [])}
+        log.debug("加载历史记录 %d 条", len(history))
+        return history
+    except (json.JSONDecodeError, KeyError) as exc:
+        log.error("历史文件解析失败 path=%s error=%s", hf, exc)
+        return {}
+
+
+def _save_history(history: dict[str, dict], cfg: SourceConfig,
+                  paths: dict[str, Path], log: logging.Logger):
+    sorted_articles = sorted(
+        history.values(), key=lambda a: a.get("timestamp", 0), reverse=True
+    )
+    payload = {
+        "meta": {
+            "source_name": cfg.source_name,
+            "last_update": datetime.now(tz=TZ_CN).strftime("%Y-%m-%d %H:%M:%S"),
+            "total_articles": len(sorted_articles),
+        },
+        "articles": sorted_articles,
+    }
+    paths["history"].write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    log.debug("历史记录已保存 count=%d path=%s", len(sorted_articles), paths["history"])
+
+
+def _save_article_file(article_data: dict, paths: dict[str, Path],
+                       log: logging.Logger) -> Path:
+    paths["articles"].mkdir(parents=True, exist_ok=True)
+    filepath = paths["articles"] / f"{article_data['id']}.json"
+    filepath.write_text(
+        json.dumps(article_data, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    log.debug("全文已保存 id=%s path=%s", article_data["id"], filepath)
+    return filepath
+
+
+# ---------------------------------------------------------------------------
+# 主流程
+# ---------------------------------------------------------------------------
+
+def run(cfg: SourceConfig) -> dict:
+    """通用入口：基于配置执行一轮完整的抓取流程。"""
+    paths = _get_paths(cfg)
+    paths["base"].mkdir(parents=True, exist_ok=True)
+
+    log = _get_logger(cfg, paths)
+    now = datetime.now(tz=TZ_CN)
+    run_id = now.strftime("%Y%m%d_%H%M%S")
+
+    log.info("========== 运行开始 run=%s ==========", run_id)
+    log.info("情报源=%s 目标=%s", cfg.source_name, cfg.source_url)
+
+    # ---- 步骤1: 获取列表页 ----
+    log.info("[步骤1] 获取列表页")
+    try:
+        html = _fetch(cfg.source_url, log)
+    except Exception as exc:
+        log.critical("列表页请求异常 error=%s", exc, exc_info=True)
+        sys.exit(1)
+    if html is None:
+        log.critical("列表页触发验证码，本轮放弃")
+        sys.exit(1)
+    log.info("列表页获取成功 size=%d bytes", len(html))
+
+    # ---- 步骤2: 解析文章索引 ----
+    log.info("[步骤2] 解析文章索引")
+    articles = _parse_list_page(html)
+    if not articles:
+        log.critical("列表页解析结果为空，页面结构可能已变更")
+        sys.exit(1)
+
+    articles_24h = [a for a in articles if _is_within_24h(a["timestamp"], now)]
+    log.info("列表页解析完成 total=%d within_24h=%d", len(articles), len(articles_24h))
+
+    # ---- 步骤3: 增量比对 ----
+    log.info("[步骤3] 增量比对")
+    history = _load_history(paths, log)
+
+    new_articles = [a for a in articles if a["id"] not in history]
+    log.info("增量比对完成 history=%d new=%d", len(history), len(new_articles))
+
+    for a in new_articles:
+        log.info("新增条目 id=%s source=%s title=%s", a["id"], a["source"], a["title"])
+
+    # ---- 步骤4: 全文获取 ----
+    pending_content = list(new_articles)
+    for a in articles:
+        if a["id"] in history and not history[a["id"]].get("content_fetched"):
+            if a["id"] not in {p["id"] for p in pending_content}:
+                pending_content.append(a)
+
+    pending_content.sort(key=lambda a: (
+        0 if _is_within_24h(a["timestamp"], now) else 1,
+        -a["timestamp"],
+    ))
+
+    batch = pending_content[:cfg.max_content_per_run]
+    skipped = len(pending_content) - len(batch)
+
+    success_count = 0
+    fail_count = 0
+    captcha_hit = False
+
+    if batch:
+        log.info("[步骤4] 全文获取 batch=%d pending_total=%d deferred=%d",
+                 len(batch), len(pending_content), skipped)
+
+        for i, article in enumerate(batch, 1):
+            is_retry = article["id"] in history
+            label = "补获" if is_retry else "新增"
+            log.info("全文获取 [%d/%d] type=%s id=%s title=%s",
+                     i, len(batch), label, article["id"], article["title"][:40])
+
+            if i > 1:
+                delay = random.uniform(*cfg.delay_range)
+                log.debug("请求间隔等待 %.1fs", delay)
+                time.sleep(delay)
+
+            try:
+                content = _fetch_article_content(article, cfg, log)
+            except CaptchaTriggered:
+                log.warning("全文获取中断: 触发验证码 已完成=%d/%d", i - 1, len(batch))
+                captcha_hit = True
+                article["content_fetched"] = False
+                article["content_file"] = None
+                fail_count += 1
+                break
+
+            if content:
+                fp = _save_article_file(content, paths, log)
+                article["content_fetched"] = True
+                article["content_file"] = fp.name
+                success_count += 1
+                log.info("全文获取成功 id=%s chars=%d file=%s",
+                         article["id"], len(content["content_text"]), fp.name)
+            else:
+                article["content_fetched"] = False
+                article["content_file"] = None
+                fail_count += 1
+                log.warning("全文获取失败 id=%s title=%s", article["id"], article["title"])
+    else:
+        log.info("[步骤4] 无待获取全文的条目，跳过")
+
+    # ---- 步骤5: 更新历史记录 ----
+    log.info("[步骤5] 更新历史记录")
+    new_ids = {a["id"] for a in new_articles}
+    for a in articles:
+        old = history.get(a["id"], {})
+        history[a["id"]] = {
+            "id": a["id"],
+            "title": a["title"],
+            "summary": a["summary"],
+            "url": a["url"],
+            "source": a["source"],
+            "publish_time": a["publish_time"],
+            "timestamp": a["timestamp"],
+            "first_seen": old.get("first_seen", now.strftime("%Y-%m-%d %H:%M:%S")),
+            "content_fetched": a.get("content_fetched", old.get("content_fetched", False)),
+            "content_file": a.get("content_file", old.get("content_file")),
+        }
+
+    _save_history(history, cfg, paths, log)
+
+    # ---- 步骤6: 输出本轮结果 ----
+    seen = set()
+    merged = []
+    for a in articles_24h + articles[:10]:
+        if a["id"] not in seen:
+            seen.add(a["id"])
+            h = history.get(a["id"], {})
+            merged.append({
+                "id": a["id"],
+                "title": a["title"],
+                "summary": a["summary"],
+                "url": a["url"],
+                "source": a["source"],
+                "publish_time": a["publish_time"],
+                "is_new": a["id"] in new_ids,
+                "content_fetched": h.get("content_fetched", False),
+                "content_file": h.get("content_file"),
+            })
+
+    unfetched_in_history = sum(1 for h in history.values() if not h.get("content_fetched"))
+
+    result = {
+        "meta": {
+            "source_name": cfg.source_name,
+            "source_url": cfg.source_url,
+            "fetch_time": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "total_on_page": len(articles),
+            "within_24h": len(articles_24h),
+            "new_articles": len(new_articles),
+            "content_fetch_success": success_count,
+            "content_fetch_fail": fail_count,
+            "captcha_triggered": captcha_hit,
+            "content_pending": unfetched_in_history,
+            "output_count": len(merged),
+            "history_total": len(history),
+        },
+        "articles": merged,
+    }
+
+    paths["latest"].write_text(
+        json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+    # ---- 运行汇总 ----
+    log.info("========== 运行汇总 run=%s ==========", run_id)
+    log.info("页面文章=%d 24h内=%d 新增=%d", len(articles), len(articles_24h), len(new_articles))
+    log.info("全文: 成功=%d 失败=%d 验证码=%s 待补获=%d",
+             success_count, fail_count, captcha_hit, unfetched_in_history)
+    log.info("历史累计=%d 本轮输出=%d", len(history), len(merged))
+    log.info("数据目录: %s", paths["base"])
+    log.info("========== 运行结束 run=%s ==========", run_id)
+
+    return result

@@ -6,35 +6,52 @@ AI领域情报的自动化采集、分析与输出平台。
 
 ### 情报源采集
 
-| 情报源 | 模块 | 状态 |
-|---|---|---|
-| 36氪AI资讯 | `sources/kr36_ai.py` | ✅ 已完成 |
+| 情报源 | 模块 | 引擎 | 状态 |
+|---|---|---|---|
+| 36氪AI资讯 | `sources/kr36_ai.py` | `kr36_base.py` | ✅ 已完成 |
+| 36氪汽车资讯 | `sources/kr36_travel.py` | `kr36_base.py` | ✅ 已完成 |
+| 汽车之家全部资讯 | `sources/autohome_all.py` | `autohome_base.py` | ✅ 已完成 |
 
-### 36氪AI资讯 (`sources/kr36_ai.py`)
+### 架构设计
 
-从 [36kr.com/information/AI](https://36kr.com/information/AI/) 自动采集最新AI资讯。
+```
+sources/
+  kr36_base.py       ← 36氪通用抓取引擎（共享逻辑）
+  kr36_ai.py          ← 36氪AI频道（配置入口）
+  kr36_travel.py      ← 36氪汽车频道（配置入口）
+  autohome_base.py   ← 汽车之家通用抓取引擎（共享逻辑）
+  autohome_all.py     ← 汽车之家全部资讯（配置入口）
 
-**核心特性：**
-- 增量采集 — 基于历史记录比对，仅处理新增条目
-- 反爬对抗 — UA轮换、随机延迟、Referer伪装、验证码检测
-- 渐进全文 — 每轮限量获取全文，遇反爬立即停止，下轮自动继续
-- 日志系统 — 双通道输出（控制台 + 文件），按天轮转保留30天
+data/                 ← 运行时数据（各源独立目录）
+  kr36_ai/
+    history.json      — 累积历史记录
+    latest.json       — 本轮运行结果
+    articles/         — 全文存档
+    logs/
+      kr36_ai.log     — 日志（按天轮转，保留30天）
+  kr36_travel/
+    ...（同上结构）
+  autohome_all/
+    ...（同上结构）
+```
 
-**运行方式：**
+新增情报源只需创建一个配置文件即可，无需重复编写抓取逻辑。
+
+### 核心特性
+
+- **增量采集** — 基于历史记录比对，仅处理新增条目
+- **反爬对抗** — UA轮换、随机延迟、Referer伪装、验证码检测
+- **渐进全文** — 每轮限量获取全文，遇反爬立即停止，下轮自动继续
+- **数据隔离** — 每个情报源独立目录，日志/输出/全文互不干扰
+- **日志系统** — 双通道输出（控制台INFO + 文件DEBUG），按天轮转
+
+## 运行方式
 
 ```bash
+# 运行单个情报源
 uv run sources/kr36_ai.py
-```
-
-**输出文件：**
-
-```
-output/
-  kr36_ai_history.json   — 累积历史记录
-  kr36_ai_latest.json    — 本轮运行结果
-  kr36_articles/         — 全文存档（每篇一个JSON）
-logs/
-  kr36_ai.log            — 运行日志
+uv run sources/kr36_travel.py
+uv run sources/autohome_all.py
 ```
 
 ## 环境要求
@@ -47,4 +64,3 @@ logs/
 ```bash
 uv sync
 ```
-
