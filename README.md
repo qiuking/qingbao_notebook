@@ -47,3 +47,4 @@ logs/
 ```bash
 uv sync
 ```
+
