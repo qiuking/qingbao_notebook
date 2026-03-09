@@ -1,10 +1,23 @@
 {
   "meta": {
     "source_name": "36氪AI资讯",
-    "last_update": "2026-03-09 11:06:12",
-    "total_articles": 54
+    "last_update": "2026-03-09 11:31:17",
+    "total_articles": 55
   },
   "articles": [
+    {
+      "id": "3715113524555911",
+      "title": "中东一场无人机轰炸，把全球智力干倒退了？",
+      "summary": "愿望是世界和平。",
+      "url": "https://36kr.com/p/3715113524555911",
+      "source": "差评",
+      "publish_time": "2026-03-09 11:13",
+      "timestamp": 1773025981421,
+      "first_seen": "2026-03-09 11:26:20",
+      "content_fetched": true,
+      "content_file": "3715113524555911.json",
+      "push_status": "failed"
+    },
     {
       "id": "3714989260583304",
       "title": "龙虾热里，谁赚到了钱",
@@ -14,9 +27,9 @@
       "publish_time": "2026-03-09 10:53",
       "timestamp": 1773024834569,
       "first_seen": "2026-03-09 11:04:50",
-      "content_fetched": false,
-      "content_file": null,
-      "push_status": ""
+      "content_fetched": true,
+      "content_file": "3714989260583304.json",
+      "push_status": "failed"
     },
     {
       "id": "3712238506521091",
@@ -131,9 +144,9 @@
       "publish_time": "2026-03-09 09:30",
       "timestamp": 1773019800000,
       "first_seen": "2026-03-09 10:43:12",
-      "content_fetched": false,
-      "content_file": null,
-      "push_status": ""
+      "content_fetched": true,
+      "content_file": "3714480200085633.json",
+      "push_status": "failed"
     },
     {
       "id": "3712327060943241",
@@ -144,9 +157,9 @@
       "publish_time": "2026-03-09 09:26",
       "timestamp": 1773019563265,
       "first_seen": "2026-03-09 10:43:12",
-      "content_fetched": false,
-      "content_file": null,
-      "push_status": ""
+      "content_fetched": true,
+      "content_file": "3712327060943241.json",
+      "push_status": "failed"
     },
     {
       "id": "3711190979867011",
@@ -157,9 +170,9 @@
       "publish_time": "2026-03-09 09:20",
       "timestamp": 1773019200000,
       "first_seen": "2026-03-09 10:43:12",
-      "content_fetched": false,
-      "content_file": null,
-      "push_status": ""
+      "content_fetched": true,
+      "content_file": "3711190979867011.json",
+      "push_status": "failed"
     },
     {
       "id": "3713730068116227",
@@ -170,9 +183,9 @@
       "publish_time": "2026-03-09 09:03",
       "timestamp": 1773018200000,
       "first_seen": "2026-03-09 10:43:12",
-      "content_fetched": false,
-      "content_file": null,
-      "push_status": ""
+      "content_fetched": true,
+      "content_file": "3713730068116227.json",
+      "push_status": "failed"
     },
     {
       "id": "3714316859421184",
@@ -183,9 +196,9 @@
       "publish_time": "2026-03-09 08:37",
       "timestamp": 1773016627541,
       "first_seen": "2026-03-09 10:43:12",
-      "content_fetched": false,
-      "content_file": null,
-      "push_status": ""
+      "content_fetched": true,
+      "content_file": "3714316859421184.json",
+      "push_status": "failed"
     },
     {
       "id": "3711571451572360",
@@ -196,9 +209,9 @@
       "publish_time": "2026-03-09 08:30",
       "timestamp": 1773016200008,
       "first_seen": "2026-03-09 10:43:12",
-      "content_fetched": false,
-      "content_file": null,
-      "push_status": ""
+      "content_fetched": true,
+      "content_file": "3711571451572360.json",
+      "push_status": "failed"
     },
     {
       "id": "3714940800888967",

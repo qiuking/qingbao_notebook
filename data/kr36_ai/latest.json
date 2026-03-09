@@ -2,21 +2,33 @@
   "meta": {
     "source_name": "36氪AI资讯",
     "source_url": "https://36kr.com/information/AI/",
-    "fetch_time": "2026-03-09 11:04:50",
+    "fetch_time": "2026-03-09 11:26:20",
     "total_on_page": 30,
     "within_24h": 29,
     "new_articles": 1,
-    "content_fetch_success": 0,
-    "content_fetch_fail": 1,
-    "captcha_triggered": true,
-    "content_pending": 16,
+    "content_fetch_success": 8,
+    "content_fetch_fail": 0,
+    "captcha_triggered": false,
+    "content_pending": 9,
     "push_retry_ok": 0,
-    "push_retry_fail": 8,
-    "push_pending": 8,
+    "push_retry_fail": 16,
+    "push_pending": 16,
     "output_count": 29,
-    "history_total": 54
+    "history_total": 55
   },
   "articles": [
+    {
+      "id": "3715113524555911",
+      "title": "中东一场无人机轰炸，把全球智力干倒退了？",
+      "summary": "愿望是世界和平。",
+      "url": "https://36kr.com/p/3715113524555911",
+      "source": "差评",
+      "publish_time": "2026-03-09 11:13",
+      "is_new": true,
+      "content_fetched": true,
+      "content_file": "3715113524555911.json",
+      "push_status": "failed"
+    },
     {
       "id": "3714989260583304",
       "title": "龙虾热里，谁赚到了钱",
@@ -24,10 +36,10 @@
       "url": "https://36kr.com/p/3714989260583304",
       "source": "王智远",
       "publish_time": "2026-03-09 10:53",
-      "is_new": true,
-      "content_fetched": false,
-      "content_file": null,
-      "push_status": ""
+      "is_new": false,
+      "content_fetched": true,
+      "content_file": "3714989260583304.json",
+      "push_status": "failed"
     },
     {
       "id": "3712238506521091",
@@ -133,9 +145,9 @@
       "source": "邱晓芬",
       "publish_time": "2026-03-09 09:30",
       "is_new": false,
-      "content_fetched": false,
-      "content_file": null,
-      "push_status": ""
+      "content_fetched": true,
+      "content_file": "3714480200085633.json",
+      "push_status": "failed"
     },
     {
       "id": "3712327060943241",
@@ -145,9 +157,9 @@
       "source": "全天候科技",
       "publish_time": "2026-03-09 09:26",
       "is_new": false,
-      "content_fetched": false,
-      "content_file": null,
-      "push_status": ""
+      "content_fetched": true,
+      "content_file": "3712327060943241.json",
+      "push_status": "failed"
     },
     {
       "id": "3711190979867011",
@@ -157,9 +169,9 @@
       "source": "黄 楠",
       "publish_time": "2026-03-09 09:20",
       "is_new": false,
-      "content_fetched": false,
-      "content_file": null,
-      "push_status": ""
+      "content_fetched": true,
+      "content_file": "3711190979867011.json",
+      "push_status": "failed"
     },
     {
       "id": "3713730068116227",
@@ -169,9 +181,9 @@
       "source": "划重点",
       "publish_time": "2026-03-09 09:03",
       "is_new": false,
-      "content_fetched": false,
-      "content_file": null,
-      "push_status": ""
+      "content_fetched": true,
+      "content_file": "3713730068116227.json",
+      "push_status": "failed"
     },
     {
       "id": "3714316859421184",
@@ -181,9 +193,9 @@
       "source": "朋克周",
       "publish_time": "2026-03-09 08:37",
       "is_new": false,
-      "content_fetched": false,
-      "content_file": null,
-      "push_status": ""
+      "content_fetched": true,
+      "content_file": "3714316859421184.json",
+      "push_status": "failed"
     },
     {
       "id": "3711571451572360",
@@ -193,9 +205,9 @@
       "source": "可能今晚好大風",
       "publish_time": "2026-03-09 08:30",
       "is_new": false,
-      "content_fetched": false,
-      "content_file": null,
-      "push_status": ""
+      "content_fetched": true,
+      "content_file": "3711571451572360.json",
+      "push_status": "failed"
     },
     {
       "id": "3714940800888967",
@@ -351,18 +363,6 @@
       "is_new": false,
       "content_fetched": true,
       "content_file": "3713744089477889.json",
-      "push_status": "ok"
-    },
-    {
-      "id": "3712770888282624",
-      "title": "AI囚徒：当算法成为枷锁，人们如何在智能时代找回自我？",
-      "summary": "然而，当罗振宇、刘润等布道者，傅盛、周鸿祎等一众互联网大佬疯狂鼓吹AI、智能体甚至是各种龙虾养起来时，几乎所有人都被卷进AI的牢笼。",
-      "url": "https://36kr.com/p/3712770888282624",
-      "source": "易方寒",
-      "publish_time": "2026-03-08 11:10",
-      "is_new": false,
-      "content_fetched": true,
-      "content_file": "3712770888282624.json",
       "push_status": "ok"
     }
   ]
