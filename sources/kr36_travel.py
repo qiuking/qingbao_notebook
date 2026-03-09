@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, Path(__file__).resolve().parent.as_posix())
 
 from kr36_base import SourceConfig, run  # noqa: E402
 

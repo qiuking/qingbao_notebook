@@ -381,4 +381,5 @@ def index():
 
 # 挂载静态文件目录
 if _STATIC_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+    # 使用 as_posix() 确保路径为正向斜杠，避免 Win/Ubuntu 混用时的乱码
+app.mount("/static", StaticFiles(directory=_STATIC_DIR.as_posix()), name="static")

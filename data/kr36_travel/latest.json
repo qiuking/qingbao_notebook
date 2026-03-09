@@ -2,21 +2,33 @@
   "meta": {
     "source_name": "36氪汽车资讯",
     "source_url": "https://36kr.com/information/travel/",
-    "fetch_time": "2026-03-09 01:29:27",
+    "fetch_time": "2026-03-09 10:44:06",
     "total_on_page": 30,
-    "within_24h": 0,
-    "new_articles": 0,
-    "content_fetch_success": 8,
-    "content_fetch_fail": 0,
-    "captcha_triggered": false,
-    "content_pending": 12,
-    "push_retry_ok": 0,
+    "within_24h": 1,
+    "new_articles": 1,
+    "content_fetch_success": 5,
+    "content_fetch_fail": 1,
+    "captcha_triggered": true,
+    "content_pending": 8,
+    "push_retry_ok": 5,
     "push_retry_fail": 0,
     "push_pending": 0,
     "output_count": 10,
-    "history_total": 30
+    "history_total": 31
   },
   "articles": [
+    {
+      "id": "3713566070354305",
+      "title": "2026，“蔚小理”日子谁都不好过",
+      "summary": "在不定性中，继续寻找确定性。",
+      "url": "https://36kr.com/p/3713566070354305",
+      "source": "汽车公社",
+      "publish_time": "2026-03-09 10:35",
+      "is_new": true,
+      "content_fetched": true,
+      "content_file": "3713566070354305.json",
+      "push_status": "ok"
+    },
     {
       "id": "3711455270613120",
       "title": "比亚迪下了盘大棋",
@@ -123,18 +135,6 @@
       "is_new": false,
       "content_fetched": true,
       "content_file": "3710774759010440.json",
-      "push_status": "ok"
-    },
-    {
-      "id": "3710769540821382",
-      "title": "何小鹏，弃守L3",
-      "summary": "L3量产元年，迎来业内最大分歧。",
-      "url": "https://36kr.com/p/3710769540821382",
-      "source": "亿欧网",
-      "publish_time": "2026-03-06 09:44",
-      "is_new": false,
-      "content_fetched": true,
-      "content_file": "3710769540821382.json",
       "push_status": "ok"
     }
   ]

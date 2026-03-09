@@ -5,7 +5,7 @@
   - 每 20 分钟启动一次 sources 目录下的所有可用数据源
   - 最多 10 个任务并行运行
   - 同一网站的任务串行执行（避免触发反爬限制）
-  - 记录问题日志到 data/scheduler/scheduler.log
+  - 记录日志到 task_scheduler/scheduler.log
 
 使用:
   uv run python scheduler.py
@@ -44,9 +44,9 @@ def _init_logging() -> logging.Logger:
     if logger.handlers:
         return logger
 
-    # 文件 handler（按天轮转，保留 30 天）
+    # 使用 as_posix() 确保路径始终为正向斜杠，避免 Win/Ubuntu 混用时的乱码
     file_handler = logging.FileHandler(
-        _LOG_FILE, encoding="utf-8", mode="a",
+        _LOG_FILE.as_posix(), encoding="utf-8", mode="a",
     )
     file_handler.setLevel(logging.DEBUG)
     file_formatter = logging.Formatter(
@@ -81,7 +81,7 @@ class SourceInfo:
 def _load_config(logger: logging.Logger) -> list[SourceInfo]:
     """从配置文件加载数据源信息"""
     if not _CONFIG_FILE.exists():
-        logger.error("配置文件不存在: %s", _CONFIG_FILE)
+        logger.error("配置文件不存在: %s", _CONFIG_FILE.as_posix())
         return []
 
     try:
@@ -128,7 +128,7 @@ def _run_source(command: str, source_id: str, logger: logging.Logger) -> dict:
             encoding="utf-8",
             errors="replace",
             timeout=600,  # 10 分钟超时
-            cwd=str(_PROJECT_ROOT),
+            cwd=_PROJECT_ROOT.as_posix(),
         )
         elapsed = time.time() - start_time
 
@@ -342,7 +342,7 @@ def run_scheduler():
     logger.info("定时调度器启动")
     logger.info("运行间隔: %d 分钟", INTERVAL_MINUTES)
     logger.info("最大并行任务: %d", MAX_PARALLEL_TASKS)
-    logger.info("配置文件: %s", _CONFIG_FILE)
+    logger.info("配置文件: %s", _CONFIG_FILE.as_posix())
     logger.info("=" * 60)
 
     try:

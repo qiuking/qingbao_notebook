@@ -103,8 +103,10 @@ def _get_logger(cfg: SourceConfig, paths: dict[str, Path]) -> logging.Logger:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
+    # 使用 as_posix() 确保路径始终为正向斜杠，避免 Win/Ubuntu 混用时的乱码
+    log_path = (paths["logs"] / f"{cfg.source_id}.log").as_posix()
     fh = TimedRotatingFileHandler(
-        paths["logs"] / f"{cfg.source_id}.log",
+        log_path,
         when="midnight", interval=1, backupCount=30, encoding="utf-8",
     )
     fh.setLevel(logging.DEBUG)
@@ -305,7 +307,7 @@ def _load_history(paths: dict[str, Path], log: logging.Logger) -> dict[str, dict
         log.debug("加载历史记录 %d 条", len(history))
         return history
     except (json.JSONDecodeError, KeyError) as exc:
-        log.error("历史文件解析失败 path=%s error=%s", hf, exc)
+        log.error("历史文件解析失败 path=%s error=%s", hf.as_posix(), exc)
         return {}
 
 
@@ -325,7 +327,7 @@ def _save_history(history: dict[str, dict], cfg: SourceConfig,
     paths["history"].write_text(
         json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    log.debug("历史记录已保存 count=%d path=%s", len(sorted_articles), paths["history"])
+    log.debug("历史记录已保存 count=%d path=%s", len(sorted_articles), paths["history"].as_posix())
 
 
 def _save_article_file(article_data: dict, paths: dict[str, Path],
@@ -335,7 +337,7 @@ def _save_article_file(article_data: dict, paths: dict[str, Path],
     filepath.write_text(
         json.dumps(article_data, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    log.debug("全文已保存 id=%s path=%s", article_data["id"], filepath)
+    log.debug("全文已保存 id=%s path=%s", article_data["id"], filepath.as_posix())
     return filepath
 
 
@@ -594,7 +596,7 @@ def run(cfg: SourceConfig) -> dict:
     log.info("推送: 补推成功=%d 补推失败=%d 待推送=%d",
              push_ok_count, push_fail_count, unpushed_in_history)
     log.info("历史累计=%d 本轮输出=%d", len(history), len(merged))
-    log.info("数据目录: %s", paths["base"])
+    log.info("数据目录: %s", paths["base"].as_posix())
     log.info("========== 运行结束 run=%s ==========", run_id)
 
     return result

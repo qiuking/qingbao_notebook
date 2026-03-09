@@ -1,5 +1,5 @@
 {
-  "last_run": "2026-03-09 01:35:48",
+  "last_run": "2026-03-09 11:06:20",
   "total": 3,
   "success": 2,
   "failed": 1,
@@ -7,20 +7,20 @@
     {
       "source_id": "kr36_ai",
       "status": "success",
-      "elapsed_sec": 0.9,
-      "error": ""
-    },
-    {
-      "source_id": "autohome_all",
-      "status": "success",
-      "elapsed_sec": 0.6,
+      "elapsed_sec": 81.4,
       "error": ""
     },
     {
       "source_id": "kr36_travel",
       "status": "failed",
-      "elapsed_sec": 0.6,
-      "error": "2026-03-09 01:35:48 [INFO] ========== 运行开始 run=20260309_013548 ==========\n2026-03-09 01:35:48 [INFO] 情报源=36氪汽车资讯 目标=https://36kr.com/information/travel/\n2026-03-09 01:35:48 [INFO] [步骤1] 获取列表页\n2026-03-09 01:35:48 [WARNING] 验证码拦截 url=https://36kr.com/information/travel/ html_len=1464\n2026-03-09 01:35:48 [CRITICAL] 列表页触发验证码，本轮放弃\n"
+      "elapsed_sec": 0.4,
+      "error": "2026-03-09 11:06:12 [INFO] ========== 运行开始 run=20260309_110612 ==========\n2026-03-09 11:06:12 [INFO] 情报源=36氪汽车资讯 目标=https://36kr.com/information/travel/\n2026-03-09 11:06:12 [INFO] [步骤1] 获取列表页\n2026-03-09 11:06:12 [WARNING] 验证码拦截 url=https://36kr.com/information/travel/ html_len=1460\n2026-03-09 11:06:12 [CRITICAL] 列表页触发验证码，本轮放弃\n"
+    },
+    {
+      "source_id": "autohome_all",
+      "status": "success",
+      "elapsed_sec": 89.2,
+      "error": ""
     }
   ]
 }
