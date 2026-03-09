@@ -48,12 +48,13 @@ END;
 
 def init_db() -> None:
     DB_DIR.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(str(DB_PATH)) as conn:
+    with sqlite3.connect(str(DB_PATH), check_same_thread=False) as conn:
         conn.executescript(_SCHEMA_SQL)
+        conn.commit()
 
 
 def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
