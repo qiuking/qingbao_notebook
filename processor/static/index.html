@@ -457,6 +457,86 @@
             color: var(--text-muted);
         }
 
+        /* 日志面板 */
+        .logs-layout {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            gap: 20px;
+            width: 100%;
+            align-items: start;
+        }
+
+        @media (max-width: 900px) {
+            .logs-layout { grid-template-columns: 1fr; }
+        }
+
+        .log-source-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .log-source-item {
+            padding: 10px 14px;
+            background: var(--bg-secondary);
+            border: 1px solid transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .log-source-item:hover {
+            border-color: var(--accent-cyan);
+        }
+
+        .log-source-item.active {
+            border-color: var(--accent-cyan);
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(139, 92, 246, 0.1));
+        }
+
+        .log-source-name {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 3px;
+        }
+
+        .log-source-mtime {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .log-container {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.65;
+            background: #0d1117;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 14px 16px;
+            height: 560px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .log-line { display: block; }
+
+        .log-error    { color: #f87171; }
+        .log-critical { color: #f87171; font-weight: bold; background: rgba(248,113,113,0.08); border-radius: 2px; }
+        .log-warning  { color: #fbbf24; }
+        .log-info     { color: #e2e8f0; }
+        .log-debug    { color: #475569; }
+        .log-cont-error    { color: #f87171; }
+        .log-cont-warning  { color: #e2b060; }
+        .log-cont-info     { color: #94a3b8; }
+        .log-cont-debug    { color: #3d4f63; }
+
+        .btn-refresh-on {
+            color: var(--accent-green) !important;
+            border-color: var(--accent-green) !important;
+        }
+
         /* 弹窗 */
         .modal-overlay {
             position: fixed;
@@ -537,6 +617,7 @@
                 <button class="btn active" onclick="switchView('dashboard')">数据概览</button>
                 <button class="btn" onclick="switchView('articles')">文章列表</button>
                 <button class="btn" onclick="switchView('trend')">趋势分析</button>
+                <button class="btn" onclick="switchView('logs')">日志监控</button>
             </div>
         </header>
 
@@ -638,6 +719,39 @@
                     </div>
                 </div>
                 <div class="chart-container" id="detailedTrendChart"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 日志监控视图 -->
+    <div id="logsView" style="display: none; flex-direction: column; gap: 20px; width: 100%;">
+        <div class="logs-layout">
+            <!-- 左侧：日志源列表 -->
+            <div class="sidebar-card">
+                <div class="sidebar-title">📋 日志源</div>
+                <div class="log-source-list" id="logSourceList">
+                    <div class="loading"><div class="spinner"></div></div>
+                </div>
+            </div>
+
+            <!-- 右侧：日志内容 -->
+            <div class="chart-card" style="min-width: 0;">
+                <div class="chart-header">
+                    <div class="chart-title" id="logTitle">选择日志源</div>
+                    <div class="chart-actions">
+                        <select id="logLines" class="btn" onchange="loadLogContent()">
+                            <option value="100">100 行</option>
+                            <option value="200" selected>200 行</option>
+                            <option value="500">500 行</option>
+                        </select>
+                        <button class="btn" id="autoRefreshBtn" onclick="toggleAutoRefresh()">自动刷新</button>
+                        <button class="btn" onclick="loadLogContent()">↻ 刷新</button>
+                    </div>
+                </div>
+                <div id="logStats" style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px; min-height: 16px;"></div>
+                <div class="log-container" id="logContent">
+                    <span class="log-debug">← 请从左侧选择日志源</span>
+                </div>
             </div>
         </div>
     </div>
@@ -950,9 +1064,17 @@
             document.getElementById('dashboardView').style.display = view === 'dashboard' ? 'grid' : 'none';
             document.getElementById('articlesView').style.display = view === 'articles' ? 'flex' : 'none';
             document.getElementById('trendView').style.display = view === 'trend' ? 'flex' : 'none';
+            document.getElementById('logsView').style.display = view === 'logs' ? 'flex' : 'none';
 
             if (view === 'trend') {
                 setTimeout(() => detailedTrendChart.resize(), 100);
+            }
+            if (view === 'logs' && !logSourcesLoaded) {
+                loadLogSources();
+            }
+            // 离开日志页时关闭自动刷新
+            if (view !== 'logs' && autoRefreshEnabled) {
+                toggleAutoRefresh();
             }
         }
 
@@ -1051,6 +1173,127 @@
                 clearTimeout(timer);
                 timer = setTimeout(() => fn.apply(this, args), delay);
             };
+        }
+
+        // ---------------------------------------------------------------
+        // 日志监控
+        // ---------------------------------------------------------------
+
+        let currentLogId = null;
+        let autoRefreshEnabled = false;
+        let autoRefreshTimer = null;
+        let logSourcesLoaded = false;
+
+        async function loadLogSources() {
+            try {
+                const res = await fetch('/api/logs');
+                const sources = await res.json();
+
+                const container = document.getElementById('logSourceList');
+                if (sources.length === 0) {
+                    container.innerHTML = '<div class="empty-state">无日志文件</div>';
+                    return;
+                }
+
+                container.innerHTML = sources.map(s => `
+                    <div class="log-source-item ${currentLogId === s.id ? 'active' : ''}"
+                         id="logSrc-${s.id}"
+                         onclick="selectLogSource('${s.id}', '${escapeHtml(s.name)}')">
+                        <div class="log-source-name">${escapeHtml(s.name)}</div>
+                        <div class="log-source-mtime">${s.mtime}</div>
+                    </div>
+                `).join('');
+
+                logSourcesLoaded = true;
+
+                // 自动选中第一个
+                if (!currentLogId && sources.length > 0) {
+                    selectLogSource(sources[0].id, sources[0].name);
+                }
+            } catch (e) {
+                console.error('加载日志源失败:', e);
+                document.getElementById('logSourceList').innerHTML = '<div class="empty-state">加载失败</div>';
+            }
+        }
+
+        function selectLogSource(id, name) {
+            currentLogId = id;
+            document.querySelectorAll('.log-source-item').forEach(el => el.classList.remove('active'));
+            const el = document.getElementById(`logSrc-${id}`);
+            if (el) el.classList.add('active');
+            document.getElementById('logTitle').textContent = name + ' 日志';
+            loadLogContent();
+        }
+
+        async function loadLogContent() {
+            if (!currentLogId) return;
+            const lines = document.getElementById('logLines').value;
+            try {
+                const res = await fetch(`/api/logs/${currentLogId}?lines=${lines}`);
+                if (!res.ok) {
+                    document.getElementById('logContent').innerHTML =
+                        `<span class="log-error">加载失败: HTTP ${res.status}</span>`;
+                    return;
+                }
+                const data = await res.json();
+
+                document.getElementById('logStats').textContent =
+                    `共 ${data.total_lines} 行 · 显示最后 ${data.returned_lines} 行`;
+
+                const container = document.getElementById('logContent');
+                container.innerHTML = renderLogLines(data.lines);
+                container.scrollTop = container.scrollHeight;
+            } catch (e) {
+                console.error('加载日志失败:', e);
+                document.getElementById('logContent').innerHTML =
+                    '<span class="log-error">网络错误，加载失败</span>';
+            }
+        }
+
+        function renderLogLines(lines) {
+            const levelRe = /\[(CRITICAL|ERROR|WARNING|WARN|INFO|DEBUG)\]/;
+            // continuation class map: inherit a dimmer shade to distinguish
+            const contClass = {
+                'log-error': 'log-cont-error',
+                'log-critical': 'log-cont-error',
+                'log-warning': 'log-cont-warning',
+                'log-info': 'log-cont-info',
+                'log-debug': 'log-cont-debug',
+            };
+            let lastCls = 'log-info';
+
+            return lines.map(line => {
+                const m = line.match(levelRe);
+                let cls;
+                if (m) {
+                    const lv = m[1];
+                    if (lv === 'CRITICAL')              cls = 'log-critical';
+                    else if (lv === 'ERROR')            cls = 'log-error';
+                    else if (lv === 'WARNING' || lv === 'WARN') cls = 'log-warning';
+                    else if (lv === 'INFO')             cls = 'log-info';
+                    else                                cls = 'log-debug';
+                    lastCls = cls;
+                } else {
+                    // continuation of previous log entry
+                    cls = contClass[lastCls] || 'log-cont-info';
+                }
+                return `<span class="log-line ${cls}">${escapeHtml(line)}</span>`;
+            }).join('\n');
+        }
+
+        function toggleAutoRefresh() {
+            autoRefreshEnabled = !autoRefreshEnabled;
+            const btn = document.getElementById('autoRefreshBtn');
+            if (autoRefreshEnabled) {
+                btn.textContent = '⏹ 停止刷新';
+                btn.classList.add('btn-refresh-on');
+                autoRefreshTimer = setInterval(loadLogContent, 10000);
+            } else {
+                btn.textContent = '自动刷新';
+                btn.classList.remove('btn-refresh-on');
+                clearInterval(autoRefreshTimer);
+                autoRefreshTimer = null;
+            }
         }
     </script>
 </body>

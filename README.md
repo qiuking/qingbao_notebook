@@ -37,14 +37,16 @@ uv sync
 | 36氪AI资讯 | `sources/kr36_ai.py` | `kr36_base.py` | ✅ 已完成 |
 | 36氪汽车资讯 | `sources/kr36_travel.py` | `kr36_base.py` | ✅ 已完成 |
 | 汽车之家全部资讯 | `sources/autohome_all.py` | `autohome_base.py` | ✅ 已完成 |
+| AIBase资讯 | `sources/aibase_news.py` | `aibase_base.py` | ✅ 已完成 |
 
-**核心特性：** 增量采集、反爬对抗、渐进全文、数据隔离、按天轮转日志、全文获取后自动推送至 processor 入库
+**核心特性：** 增量采集、反爬对抗、渐进全文、数据隔离、按天轮转日志、全文获取后自动推送至 processor 入库。AIBase 仅抓取列表首页（站点为前端分页，URL 参数 `?page=` 无效），同页内按 id 去重。
 
 ```bash
 # 运行单个情报源（需先启动 processor 服务，否则推送会失败）
 uv run python sources/kr36_ai.py
 uv run python sources/kr36_travel.py
 uv run python sources/autohome_all.py
+uv run python sources/aibase_news.py
 ```
 
 ---
@@ -118,7 +120,7 @@ uv run uvicorn processor.app:app --host 0.0.0.0 --port 8000 --reload
 
 - **运行间隔：** 每 20 分钟执行一次
 - **最大并行：** 10 个任务
-- **同组串行：** 同一 `group`（如 36kr.com）内的任务串行执行，避免触发反爬限制
+- **同组串行：** 同一 `group`（根域名，如 `36kr.com`、`aibase.cn`）内的任务串行执行，避免同站访问过密
 - **配置驱动：** 从 `task_scheduler/sources.json` 读取数据源列表，每次周期重新加载
 - **日志：** `task_scheduler/scheduler.log`，状态写入 `task_scheduler/state.json`
 
@@ -183,7 +185,7 @@ nohup uv run python scheduler.py > scheduler_stdout.log 2>&1 &
 1. **processor 必须先启动**：sources 抓取到全文后会推送到 processor，若服务未启动，推送会失败（仅记录日志，不影响本地数据存储）。
 2. **API Key 自动生成**：首次启动 processor 时会在 `.env` 中写入 `PROCESSOR_API_KEY`，请勿提交 `.env` 到版本库。
 3. **远程部署**：sources 与 processor 分离部署时，需在 sources 端配置 `PROCESSOR_URL` 和 `PROCESSOR_API_KEY`。
-4. **调度配置**：修改 `task_scheduler/sources.json` 可增删数据源、调整 `group`（同组串行）或 `enabled` 开关。
+4. **调度配置**：修改 `task_scheduler/sources.json` 可增删数据源、调整 `group`（根域名，同组串行）或 `enabled` 开关。
 5. **单任务超时**：scheduler 中每个数据源脚本最长执行 10 分钟，超时会被终止。
 6. **跨平台路径**：代码统一使用 `Path.as_posix()` 输出路径，避免 Windows 反斜杠在 Ubuntu 上产生乱码；建议在 Ubuntu 上部署生产环境。
 
@@ -199,6 +201,8 @@ sources/
   kr36_travel.py       ← 36氪汽车频道
   autohome_base.py     ← 汽车之家通用抓取引擎
   autohome_all.py      ← 汽车之家全部资讯
+  aibase_base.py       ← AIBase 通用抓取引擎（仅首页列表，按 id 去重）
+  aibase_news.py       ← AIBase 资讯
 
 processor/
   app.py               ← FastAPI 主服务
@@ -216,6 +220,7 @@ data/                  ← 情报源运行时数据
   kr36_ai/
   kr36_travel/
   autohome_all/
+  aibase_news/
 
 data_server/
   qingbao_zx.db        ← 情报数据库（SQLite）

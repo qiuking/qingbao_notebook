@@ -9,6 +9,7 @@
     uv run uvicorn processor.app:app --host 0.0.0.0 --port 8000 --reload
 """
 
+import re
 import sqlite3
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -32,6 +33,8 @@ from .schemas import (
 
 # 前端静态文件目录
 _STATIC_DIR = Path(__file__).parent / "static"
+# 项目根目录（用于定位日志文件）
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 @asynccontextmanager
@@ -355,6 +358,56 @@ def get_groups(conn: sqlite3.Connection = Depends(get_db)):
             "latest": d["latest"],
         })
     return groups
+
+
+# ---------------------------------------------------------------------------
+# 日志 API
+# ---------------------------------------------------------------------------
+
+@app.get("/api/logs")
+def list_logs():
+    """列出所有可用的日志源（调度器 + 各数据源）。"""
+    sources = []
+
+    sched = _PROJECT_ROOT / "task_scheduler" / "scheduler.log"
+    if sched.exists():
+        mtime = datetime.fromtimestamp(sched.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+        sources.append({"id": "scheduler", "name": "调度器", "mtime": mtime})
+
+    data_dir = _PROJECT_ROOT / "data"
+    if data_dir.exists():
+        for log_file in sorted(data_dir.glob("*/logs/*.log")):
+            source_id = log_file.stem
+            mtime = datetime.fromtimestamp(log_file.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+            sources.append({"id": source_id, "name": source_id, "mtime": mtime})
+
+    return sources
+
+
+@app.get("/api/logs/{log_id}")
+def get_log_content(log_id: str, lines: int = Query(200, ge=10, le=2000)):
+    """获取指定日志源的最后 N 行内容。"""
+    if not re.match(r"^[a-zA-Z0-9_]+$", log_id):
+        raise HTTPException(status_code=400, detail="无效的日志ID")
+
+    if log_id == "scheduler":
+        log_file = _PROJECT_ROOT / "task_scheduler" / "scheduler.log"
+    else:
+        log_file = _PROJECT_ROOT / "data" / log_id / "logs" / f"{log_id}.log"
+
+    if not log_file.exists():
+        raise HTTPException(status_code=404, detail="日志文件不存在")
+
+    content = log_file.read_text(encoding="utf-8", errors="replace")
+    all_lines = content.splitlines()
+    tail = all_lines[-lines:] if len(all_lines) > lines else all_lines
+
+    return {
+        "log_id": log_id,
+        "total_lines": len(all_lines),
+        "returned_lines": len(tail),
+        "lines": tail,
+    }
 
 
 # ---------------------------------------------------------------------------

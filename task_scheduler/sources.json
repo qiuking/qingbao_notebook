@@ -18,6 +18,12 @@
       "group": "autohome.com.cn",
       "command": "python sources/autohome_all.py",
       "enabled": true
+    },
+    {
+      "id": "aibase_news",
+      "group": "aibase.cn",
+      "command": "python sources/aibase_news.py",
+      "enabled": true
     }
   ]
 }

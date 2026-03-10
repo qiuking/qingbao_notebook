@@ -352,6 +352,32 @@ def _load_history(paths: dict[str, Path], log: logging.Logger) -> dict[str, dict
         return {}
 
 
+REPAIR_WINDOW_DAYS = 7
+
+
+def _repair_history_missing_files(
+    history: dict[str, dict], paths: dict[str, Path], log: logging.Logger
+) -> int:
+    """将 content_fetched=true 且 content_file 有值但全文文件不存在的记录置为未获取，返回修复条数。仅处理最近 REPAIR_WINDOW_DAYS 天的数据，避免缓存清理后大量重拉。"""
+    now = datetime.now(tz=TZ_CN)
+    cutoff_ms = int((now - timedelta(days=REPAIR_WINDOW_DAYS)).timestamp() * 1000)
+    repaired = 0
+    for aid, h in list(history.items()):
+        if h.get("timestamp", 0) < cutoff_ms:
+            continue
+        if not h.get("content_fetched") or not h.get("content_file"):
+            continue
+        fp = paths["articles"] / h["content_file"]
+        if fp.exists():
+            continue
+        log.info("修复孤儿记录: 全文文件不存在 id=%s content_file=%s，置为未获取（push_status 不改，已入库则不重拉）",
+                 aid, h["content_file"])
+        h["content_fetched"] = False
+        h["content_file"] = None
+        repaired += 1
+    return repaired
+
+
 def _save_history(history: dict[str, dict], cfg: SourceConfig,
                   paths: dict[str, Path], log: logging.Logger):
     sorted_articles = sorted(
@@ -430,18 +456,31 @@ def run(cfg: SourceConfig) -> dict:
     log.info("[步骤3] 增量比对")
     history = _load_history(paths, log)
 
+    # 修复：content_fetched=true 且有 content_file 但全文文件不存在的记录，置为未获取
+    repaired = _repair_history_missing_files(history, paths, log)
+    if repaired:
+        log.info("修复孤儿记录 %d 条，已写回 history", repaired)
+        _save_history(history, cfg, paths, log)
+
     new_articles = [a for a in articles if a["id"] not in history]
     log.info("增量比对完成 history=%d new=%d", len(history), len(new_articles))
 
     for a in new_articles:
         log.info("新增条目 id=%s source=%s title=%s", a["id"], a["source"], a["title"])
 
-    # ---- 步骤4: 全文获取 ----
+    # ---- 步骤4: 全文获取（仅针对尚未入库的条目：未获取全文且未推送成功的才需要获取）----
     pending_content: list[dict] = list(new_articles)
     for a in articles:
-        if a["id"] in history and not history[a["id"]].get("content_fetched"):
-            if a["id"] not in {p["id"] for p in pending_content}:
-                pending_content.append(a)
+        if a["id"] not in history:
+            continue
+        h = history[a["id"]]
+        if h.get("content_fetched"):
+            continue
+        # 已入库（已推送成功）的条目不再获取全文
+        if push_status_done(h.get("push_status", "")):
+            continue
+        if a["id"] not in {p["id"] for p in pending_content}:
+            pending_content.append(a)
 
     pending_content.sort(key=lambda a: (
         0 if _is_within_24h(a["timestamp"], now) else 1,
