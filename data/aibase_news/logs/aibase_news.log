@@ -1,0 +1,84 @@
+2026-03-10 23:29:49 [INFO] ========== 运行开始 run=20260310_232949 ==========
+2026-03-10 23:29:49 [INFO] 情报源=AIbase资讯 目标=https://news.aibase.cn/zh/news
+2026-03-10 23:29:49 [INFO] [步骤1] 获取列表页
+2026-03-10 23:29:49 [DEBUG] HTTP GET https://news.aibase.cn/zh/news -> 49384 bytes, 0.38s
+2026-03-10 23:29:49 [INFO] 列表页获取成功 size=49384 bytes
+2026-03-10 23:29:49 [INFO] [步骤2] 解析文章索引
+2026-03-10 23:29:49 [INFO] 列表页解析完成 total=8 within_24h=8
+2026-03-10 23:29:49 [INFO] [步骤3] 增量比对
+2026-03-10 23:29:49 [DEBUG] 历史文件不存在，首次运行
+2026-03-10 23:29:49 [INFO] 增量比对完成 history=0 new=8
+2026-03-10 23:29:49 [INFO] 新增条目 id=26095 source=AIbase基地 title=光纤也疯狂！G.652.D 报价暴涨 650%，长飞光纤午后直线封板
+2026-03-10 23:29:49 [INFO] 新增条目 id=26094 source=AIbase基地 title=小红书发布社区公告:严厉打击AI托管类账号及虚假互动行为
+2026-03-10 23:29:49 [INFO] 新增条目 id=26093 source=AIbase基地 title=蚂蚁集团开启“抢人”模式：技术岗占8. 5 成，AI 浓度直接拉满！
+2026-03-10 23:29:49 [INFO] 新增条目 id=26092 source=AIbase基地 title=​杨立昆进军“世界模型”：其 AI 初创公司完成 10.3 亿美元融资
+2026-03-10 23:29:49 [INFO] 新增条目 id=26091 source=AIbase基地 title=​美军方态度强硬：打官司无法动摇 Anthropic 的“供应链风险”认定
+2026-03-10 23:29:49 [INFO] 新增条目 id=26089 source=AIbase基地 title=日产万字、48 小时写完 500 万字：AI “文学平替”正重塑网文生态
+2026-03-10 23:29:49 [INFO] 新增条目 id=26088 source=AIbase基地 title=​腾讯全系“龙虾”产品矩阵发布：WorkBuddy、QClaw等，个人与企业均可一键开启 AI 特工时代
+2026-03-10 23:29:49 [INFO] 新增条目 id=26087 source=AIbase基地 title=受特斯拉AI6 芯片生产计划变更波及，韩国AI黑马DX-M2 量产推迟至 2026 年三季度
+2026-03-10 23:29:49 [INFO] [步骤4] 全文获取 batch=8 pending_total=8 deferred=0
+2026-03-10 23:29:49 [INFO] 全文获取 [1/8] type=新增 id=26095 title=光纤也疯狂！G.652.D 报价暴涨 650%，长飞光纤午后直线封板
+2026-03-10 23:29:49 [DEBUG] HTTP GET https://news.aibase.cn/zh/news/26095 -> 40142 bytes, 0.36s
+2026-03-10 23:29:49 [DEBUG] 全文已保存 id=26095 path=/root/wkdir/qingbao_notebook/data/aibase_news/articles/26095.json
+2026-03-10 23:29:49 [INFO] 全文获取成功 id=26095 chars=866 file=26095.json
+2026-03-10 23:29:49 [DEBUG] 推送成功 origin_id=26095 title=光纤也疯狂！G.652.D 报价暴涨 650%，长飞光纤午后
+2026-03-10 23:29:49 [INFO] 推送成功 id=26095 status=ok
+2026-03-10 23:29:49 [INFO] 全文获取 [2/8] type=新增 id=26094 title=小红书发布社区公告:严厉打击AI托管类账号及虚假互动行为
+2026-03-10 23:29:49 [DEBUG] 请求间隔等待 5.0s
+2026-03-10 23:29:55 [DEBUG] HTTP GET https://news.aibase.cn/zh/news/26094 -> 37551 bytes, 0.30s
+2026-03-10 23:29:55 [DEBUG] 全文已保存 id=26094 path=/root/wkdir/qingbao_notebook/data/aibase_news/articles/26094.json
+2026-03-10 23:29:55 [INFO] 全文获取成功 id=26094 chars=513 file=26094.json
+2026-03-10 23:29:55 [DEBUG] 推送成功 origin_id=26094 title=小红书发布社区公告:严厉打击AI托管类账号及虚假互动行为
+2026-03-10 23:29:55 [INFO] 推送成功 id=26094 status=ok
+2026-03-10 23:29:55 [INFO] 全文获取 [3/8] type=新增 id=26093 title=蚂蚁集团开启“抢人”模式：技术岗占8. 5 成，AI 浓度直接拉满！
+2026-03-10 23:29:55 [DEBUG] 请求间隔等待 6.9s
+2026-03-10 23:30:02 [DEBUG] HTTP GET https://news.aibase.cn/zh/news/26093 -> 39999 bytes, 0.31s
+2026-03-10 23:30:02 [DEBUG] 全文已保存 id=26093 path=/root/wkdir/qingbao_notebook/data/aibase_news/articles/26093.json
+2026-03-10 23:30:02 [INFO] 全文获取成功 id=26093 chars=890 file=26093.json
+2026-03-10 23:30:02 [DEBUG] 推送成功 origin_id=26093 title=蚂蚁集团开启“抢人”模式：技术岗占8. 5 成，AI 浓度直
+2026-03-10 23:30:02 [INFO] 推送成功 id=26093 status=ok
+2026-03-10 23:30:02 [INFO] 全文获取 [4/8] type=新增 id=26092 title=​杨立昆进军“世界模型”：其 AI 初创公司完成 10.3 亿美元融资
+2026-03-10 23:30:02 [DEBUG] 请求间隔等待 9.6s
+2026-03-10 23:30:12 [DEBUG] HTTP GET https://news.aibase.cn/zh/news/26092 -> 38626 bytes, 0.31s
+2026-03-10 23:30:12 [DEBUG] 全文已保存 id=26092 path=/root/wkdir/qingbao_notebook/data/aibase_news/articles/26092.json
+2026-03-10 23:30:12 [INFO] 全文获取成功 id=26092 chars=650 file=26092.json
+2026-03-10 23:30:12 [DEBUG] 推送成功 origin_id=26092 title=​杨立昆进军“世界模型”：其 AI 初创公司完成 10.3 
+2026-03-10 23:30:12 [INFO] 推送成功 id=26092 status=ok
+2026-03-10 23:30:12 [INFO] 全文获取 [5/8] type=新增 id=26091 title=​美军方态度强硬：打官司无法动摇 Anthropic 的“供应链风险”认定
+2026-03-10 23:30:12 [DEBUG] 请求间隔等待 9.8s
+2026-03-10 23:30:22 [DEBUG] HTTP GET https://news.aibase.cn/zh/news/26091 -> 37624 bytes, 0.36s
+2026-03-10 23:30:22 [DEBUG] 全文已保存 id=26091 path=/root/wkdir/qingbao_notebook/data/aibase_news/articles/26091.json
+2026-03-10 23:30:22 [INFO] 全文获取成功 id=26091 chars=555 file=26091.json
+2026-03-10 23:30:22 [DEBUG] 推送成功 origin_id=26091 title=​美军方态度强硬：打官司无法动摇 Anthropic 的“供
+2026-03-10 23:30:22 [INFO] 推送成功 id=26091 status=ok
+2026-03-10 23:30:22 [INFO] 全文获取 [6/8] type=新增 id=26089 title=日产万字、48 小时写完 500 万字：AI “文学平替”正重塑网文生态
+2026-03-10 23:30:22 [DEBUG] 请求间隔等待 8.3s
+2026-03-10 23:30:31 [DEBUG] HTTP GET https://news.aibase.cn/zh/news/26089 -> 39809 bytes, 0.28s
+2026-03-10 23:30:31 [DEBUG] 全文已保存 id=26089 path=/root/wkdir/qingbao_notebook/data/aibase_news/articles/26089.json
+2026-03-10 23:30:31 [INFO] 全文获取成功 id=26089 chars=926 file=26089.json
+2026-03-10 23:30:31 [DEBUG] 推送成功 origin_id=26089 title=日产万字、48 小时写完 500 万字：AI “文学平替”正
+2026-03-10 23:30:31 [INFO] 推送成功 id=26089 status=ok
+2026-03-10 23:30:31 [INFO] 全文获取 [7/8] type=新增 id=26088 title=​腾讯全系“龙虾”产品矩阵发布：WorkBuddy、QClaw等，个人与企业均可
+2026-03-10 23:30:31 [DEBUG] 请求间隔等待 9.5s
+2026-03-10 23:30:40 [DEBUG] HTTP GET https://news.aibase.cn/zh/news/26088 -> 39433 bytes, 0.32s
+2026-03-10 23:30:40 [DEBUG] 全文已保存 id=26088 path=/root/wkdir/qingbao_notebook/data/aibase_news/articles/26088.json
+2026-03-10 23:30:40 [INFO] 全文获取成功 id=26088 chars=738 file=26088.json
+2026-03-10 23:30:40 [DEBUG] 推送成功 origin_id=26088 title=​腾讯全系“龙虾”产品矩阵发布：WorkBuddy、QCla
+2026-03-10 23:30:40 [INFO] 推送成功 id=26088 status=ok
+2026-03-10 23:30:40 [INFO] 全文获取 [8/8] type=新增 id=26087 title=受特斯拉AI6 芯片生产计划变更波及，韩国AI黑马DX-M2 量产推迟至 202
+2026-03-10 23:30:40 [DEBUG] 请求间隔等待 9.9s
+2026-03-10 23:30:51 [DEBUG] HTTP GET https://news.aibase.cn/zh/news/26087 -> 41052 bytes, 0.30s
+2026-03-10 23:30:51 [DEBUG] 全文已保存 id=26087 path=/root/wkdir/qingbao_notebook/data/aibase_news/articles/26087.json
+2026-03-10 23:30:51 [INFO] 全文获取成功 id=26087 chars=858 file=26087.json
+2026-03-10 23:30:51 [DEBUG] 推送成功 origin_id=26087 title=受特斯拉AI6 芯片生产计划变更波及，韩国AI黑马DX-M2
+2026-03-10 23:30:51 [INFO] 推送成功 id=26087 status=ok
+2026-03-10 23:30:51 [INFO] [步骤5] 更新历史记录
+2026-03-10 23:30:51 [DEBUG] 历史记录已保存 count=8 path=/root/wkdir/qingbao_notebook/data/aibase_news/history.json
+2026-03-10 23:30:51 [INFO] [步骤5.5] 无需补推
+2026-03-10 23:30:51 [INFO] ========== 运行汇总 run=20260310_232949 ==========
+2026-03-10 23:30:51 [INFO] 页面文章=8 24h内=8 新增=8
+2026-03-10 23:30:51 [INFO] 全文: 成功=8 失败=0 待补获=0
+2026-03-10 23:30:51 [INFO] 推送: 补推成功=0 补推失败=0 待推送=0
+2026-03-10 23:30:51 [INFO] 历史累计=8 本轮输出=8
+2026-03-10 23:30:51 [INFO] 数据目录: /root/wkdir/qingbao_notebook/data/aibase_news
+2026-03-10 23:30:51 [INFO] ========== 运行结束 run=20260310_232949 ==========

@@ -1,31 +1,31 @@
 {
-  "last_run": "2026-03-10 17:54:42",
+  "last_run": "2026-03-10 23:30:51",
   "total": 4,
-  "success": 3,
-  "failed": 1,
+  "success": 4,
+  "failed": 0,
   "results": [
     {
-      "source_id": "aibase_news",
-      "status": "failed",
+      "source_id": "kr36_ai",
+      "status": "success",
       "elapsed_sec": 0.3,
-      "error": "Traceback (most recent call last):\n  File \"/home/p30021252244/wyq/wkdir/qingbao_notebook/sources/aibase_news.py\", line 17, in <module>\n    run(config)\n    ~~~^^^^^^^^\n  File \"/home/p30021252244/wyq/wkdir/qingbao_notebook/sources/aibase_base.py\", line 413, in run\n    page_articles = _parse_list_api(html, now)\n                    ^^^^^^^^^^^^^^^\nNameError: name '_parse_list_api' is not defined. Did you mean: '_parse_list_page'?\n"
+      "error": ""
     },
     {
       "source_id": "autohome_all",
       "status": "success",
-      "elapsed_sec": 37.7,
-      "error": ""
-    },
-    {
-      "source_id": "kr36_ai",
-      "status": "success",
-      "elapsed_sec": 64.8,
+      "elapsed_sec": 0.4,
       "error": ""
     },
     {
       "source_id": "kr36_travel",
       "status": "success",
-      "elapsed_sec": 42.1,
+      "elapsed_sec": 55.6,
+      "error": ""
+    },
+    {
+      "source_id": "aibase_news",
+      "status": "success",
+      "elapsed_sec": 62.3,
       "error": ""
     }
   ]
