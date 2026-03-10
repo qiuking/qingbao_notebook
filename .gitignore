@@ -18,3 +18,5 @@ data_server/
 output/
 logs/
 *.log
+task_scheduler/state.json
+task_scheduler/*.log
