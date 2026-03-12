@@ -35,6 +35,10 @@ from push_to_processor import (
 TZ_CN = timezone(timedelta(hours=8))
 
 ARTICLE_URL_TPL = "https://news.aibase.cn/zh/news/{oid}"
+LIST_API_TPL = "https://mcpapi.aibase.cn/api/aiInfo/aiNews?t={ts}&langType=zh_cn&pageNo={page}"
+
+# 列表翻页：通过 API 获取，每页 8 条，支持 pageNo 参数
+MAX_LIST_PAGES = 10
 
 _UA_POOL = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -241,16 +245,14 @@ def _is_within_24h(ts_ms: int, now: datetime) -> bool:
     return (now - datetime.fromtimestamp(ts_ms / 1000, tz=TZ_CN)) <= timedelta(hours=24)
 
 
-def _parse_list_page(html: str) -> list[dict]:
-    """从列表页 HTML 中解析文章索引列表。"""
-    arr = _extract_nuxt_data(html)
-    if not arr:
-        return []
-
+def _parse_list_api(json_str: str) -> list[dict]:
+    """从 API 返回的 JSON 中解析文章索引列表。"""
     try:
-        root = _devalue_resolve(arr, 0)
-        items = root["data"]["getAINewsList"]["data"]["list"]
-    except (KeyError, TypeError, AttributeError):
+        data = json.loads(json_str)
+        if data.get("code") != 200:
+            return []
+        items = data.get("data", {}).get("list", [])
+    except (json.JSONDecodeError, AttributeError):
         return []
 
     if not isinstance(items, list):
@@ -437,24 +439,50 @@ def run(cfg: SourceConfig) -> dict:
     log.info("========== 运行开始 run=%s ==========", run_id)
     log.info("情报源=%s 目标=%s", cfg.source_name, cfg.source_url)
 
-    # ---- 步骤1: 获取列表页 ----
-    log.info("[步骤1] 获取列表页")
-    try:
-        html = _fetch(cfg.source_url, log)
-    except Exception as exc:
-        log.critical("列表页请求异常 error=%s", exc, exc_info=True)
-        sys.exit(1)
-    if html is None:
-        log.critical("列表页获取失败，本轮放弃")
-        sys.exit(1)
-    log.info("列表页获取成功 size=%d bytes", len(html))
+    # ---- 步骤1: 获取列表页（API 翻页，获取当天所有文章） ----
+    log.info("[步骤1] 获取列表页（API 翻页）")
+    merged_by_id: dict[str, dict] = {}
+    found_old_article = False
+    for page in range(1, MAX_LIST_PAGES + 1):
+        list_url = LIST_API_TPL.format(ts=int(time.time() * 1000), page=page)
+        try:
+            resp = _fetch(list_url, log)
+        except Exception as exc:
+            log.critical("列表页请求异常 page=%d error=%s", page, exc, exc_info=True)
+            sys.exit(1)
+        if resp is None:
+            log.warning("列表页获取失败 page=%d，停止翻页", page)
+            break
 
-    # ---- 步骤2: 解析文章索引 ----
-    log.info("[步骤2] 解析文章索引")
-    articles = _parse_list_page(html)
+        page_articles = _parse_list_api(resp)
+        new_in_page = 0
+        for a in page_articles:
+            if a["id"] not in merged_by_id:
+                merged_by_id[a["id"]] = a
+                new_in_page += 1
+        log.debug("page=%d 解析 %d 条，其中新增 %d 条（去重后累计 %d）",
+                  page, len(page_articles), new_in_page, len(merged_by_id))
+
+        if not page_articles:
+            log.info("page=%d 无文章，停止翻页", page)
+            break
+        # 检查是否遇到了超过24小时的旧文章
+        for a in page_articles:
+            if not _is_within_24h(a["timestamp"], now):
+                found_old_article = True
+                break
+        if found_old_article:
+            log.info("page=%d 遇到超过24小时的旧文章，停止翻页", page)
+            break
+        if page < MAX_LIST_PAGES:
+            time.sleep(random.uniform(*cfg.delay_range))
+
+    articles = list(merged_by_id.values())
+    articles.sort(key=lambda a: int(a["id"]), reverse=True)
     if not articles:
         log.critical("列表页解析结果为空，页面结构可能已变更")
         sys.exit(1)
+    log.info("[步骤2] 解析文章索引 共 %d 条（多页去重后）", len(articles))
 
     articles_24h = [a for a in articles if _is_within_24h(a["timestamp"], now)]
     log.info("列表页解析完成 total=%d within_24h=%d", len(articles), len(articles_24h))

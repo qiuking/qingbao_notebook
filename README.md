@@ -39,7 +39,7 @@ uv sync
 | 汽车之家全部资讯 | `sources/autohome_all.py` | `autohome_base.py` | ✅ 已完成 |
 | AIBase资讯 | `sources/aibase_news.py` | `aibase_base.py` | ✅ 已完成 |
 
-**核心特性：** 增量采集、反爬对抗、渐进全文、数据隔离、按天轮转日志、全文获取后自动推送至 processor 入库。AIBase 仅抓取列表首页（站点为前端分页，URL 参数 `?page=` 无效），同页内按 id 去重。
+**核心特性：** 增量采集、反爬对抗、渐进全文、数据隔离、按天轮转日志、全文获取后自动推送至 processor 入库。AIBase 通过 API 翻页（最多 10 页，每页 8 条），当某页全部文章已在历史记录中时自动停止翻页。
 
 ```bash
 # 运行单个情报源（需先启动 processor 服务，否则推送会失败）
@@ -201,7 +201,7 @@ sources/
   kr36_travel.py       ← 36氪汽车频道
   autohome_base.py     ← 汽车之家通用抓取引擎
   autohome_all.py      ← 汽车之家全部资讯
-  aibase_base.py       ← AIBase 通用抓取引擎（仅首页列表，按 id 去重）
+  aibase_base.py       ← AIBase 通用抓取引擎（API 翻页，最多 10 页，按 id 去重）
   aibase_news.py       ← AIBase 资讯
 
 processor/
