@@ -352,7 +352,7 @@ def run_scheduler():
                     elif _should_run_interval(source, state, now):
                         reason = f"周期调度 (间隔{source.interval}分钟)"
                         queue.add_task(source, reason)
-                        _mark_interval_run(source, state, now)
+                        _mark_interval_run(source, state)
 
                 # 执行任务
                 if queue.has_pending():
