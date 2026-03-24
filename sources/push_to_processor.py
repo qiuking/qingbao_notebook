@@ -35,6 +35,11 @@ def push_status_done(status: str) -> bool:
     return status in (PUSH_OK, PUSH_EXISTS)
 
 
+def push_status_retryable(status: str) -> bool:
+    """仅 failed 允许自动补推，避免 skipped 导致无效重试阻塞。"""
+    return status == PUSH_FAILED
+
+
 def _read_env(key: str, default: str = "") -> str:
     if not _ENV_FILE.exists():
         return default

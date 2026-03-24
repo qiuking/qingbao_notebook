@@ -1,28 +1,39 @@
 {
-  "comment": "数据源配置文件，每个周期会重新读取",
+  "comment": "统一调度配置文件，支持周期调度和定点调度",
   "sources": [
     {
       "id": "kr36_ai",
       "group": "36kr.com",
       "command": "python sources/kr36_ai.py",
+      "interval": 20,
       "enabled": true
     },
     {
       "id": "kr36_travel",
       "group": "36kr.com",
       "command": "python sources/kr36_travel.py",
+      "interval": 20,
       "enabled": true
     },
     {
       "id": "autohome_all",
       "group": "autohome.com.cn",
       "command": "python sources/autohome_all.py",
+      "interval": 20,
       "enabled": true
     },
     {
       "id": "aibase_news",
       "group": "aibase.cn",
       "command": "python sources/aibase_news.py",
+      "interval": 20,
+      "enabled": true
+    },
+    {
+      "id": "miit_wjfb",
+      "group": "miit.gov.cn",
+      "command": "python source_gov/miit_wjfb.py",
+      "times": [8, 12, 18, 23],
       "enabled": true
     }
   ]
