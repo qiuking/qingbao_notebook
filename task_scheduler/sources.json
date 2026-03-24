@@ -30,6 +30,13 @@
       "enabled": true
     },
     {
+      "id": "dongchedi_newcar",
+      "group": "dongchedi.com",
+      "command": "python sources/dongchedi_newcar.py",
+      "interval": 20,
+      "enabled": true
+    },
+    {
       "id": "miit_wjfb",
       "group": "miit.gov.cn",
       "command": "python source_gov/miit_wjfb.py",
