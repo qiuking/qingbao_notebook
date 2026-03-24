@@ -7,12 +7,12 @@
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │  情报获取    │────▶│  情报处理    │────▶│  情报分发    │
-│  sources/    │     │  processor/  │     │  (规划中)    │
+│  sources/    │     │  processor/  │     │ distributor/ │
 └─────────────┘     └─────────────┘     └─────────────┘
        ▲
        │ 定时触发
 ┌─────────────┐
-│  定时调度器   │
+│  统一调度器   │
 │  scheduler.py │
 └─────────────┘
 ```
@@ -22,7 +22,7 @@
 ## 环境要求与安装
 
 - Python >= 3.14
-- 依赖：fastapi, uvicorn
+- 依赖：fastapi, uvicorn, anthropic (可选，用于 AI 摘要)
 
 ```bash
 uv sync
@@ -30,7 +30,16 @@ uv sync
 
 ---
 
-## 模块一：情报获取 (`sources/`)
+## 模块一：情报获取
+
+情报获取分为两类数据源目录：
+
+| 目录 | 用途 | 数据源 |
+|------|------|--------|
+| `sources/` | 普通新闻资讯 | 36氪、汽车之家、AIbase、懂车帝 |
+| `source_gov/` | 政府文件 | 工信部文件发布 |
+
+### 1. 普通新闻资讯 (`sources/`)
 
 | 情报源 | 模块 | 引擎 | 状态 |
 |---|---|---|---|
@@ -38,15 +47,21 @@ uv sync
 | 36氪汽车资讯 | `sources/kr36_travel.py` | `kr36_base.py` | ✅ 已完成 |
 | 汽车之家全部资讯 | `sources/autohome_all.py` | `autohome_base.py` | ✅ 已完成 |
 | AIBase资讯 | `sources/aibase_news.py` | `aibase_base.py` | ✅ 已完成 |
+| 懂车帝新车资讯 | `sources/dongchedi_newcar.py` | `dongchedi_base.py` | ✅ 已完成 |
 
-**核心特性：** 增量采集、反爬对抗、渐进全文、数据隔离、按天轮转日志、全文获取后自动推送至 processor 入库。AIBase 通过 API 翻页（最多 10 页，每页 8 条），当某页全部文章已在历史记录中时自动停止翻页。
+### 2. 政府文件 (`source_gov/`)
+
+| 情报源 | 模块 | 引擎 | 状态 |
+|---|---|---|---|
+| 工信部文件发布 | `source_gov/miit_wjfb.py` | `source_gov/miit_base.py` | ✅ 已完成 |
+
+**核心特性：** 增量采集、反爬对抗、渐进全文、数据隔离、按天轮转日志、全文获取后自动推送至 processor 入库。
 
 ```bash
 # 运行单个情报源（需先启动 processor 服务，否则推送会失败）
 uv run python sources/kr36_ai.py
-uv run python sources/kr36_travel.py
-uv run python sources/autohome_all.py
-uv run python sources/aibase_news.py
+uv run python sources/dongchedi_newcar.py
+uv run python source_gov/miit_wjfb.py
 ```
 
 ---
@@ -114,14 +129,49 @@ uv run uvicorn processor.app:app --host 0.0.0.0 --port 8000 --reload
 
 ---
 
-## 模块三：定时调度器 (`scheduler.py`)
+## 模块三：统一调度器 (`scheduler.py`)
 
-按周期自动启动各情报源脚本，实现无人值守采集。
+支持两种调度模式的统一调度器：
 
-- **运行间隔：** 每 20 分钟执行一次
-- **最大并行：** 10 个任务
-- **同组串行：** 同一 `group`（根域名，如 `36kr.com`、`aibase.cn`）内的任务串行执行，避免同站访问过密
-- **配置驱动：** 从 `task_scheduler/sources.json` 读取数据源列表，每次周期重新加载
+### 调度模式
+
+| 模式 | 配置字段 | 说明 | 示例 |
+|------|----------|------|------|
+| 周期调度 | `interval` | 每隔 N 分钟运行一次 | `20` = 每20分钟 |
+| 定点调度 | `times` | 在指定时间点附近运行 | `[8, 12, 18, 23]` = 约8点、12点、18点、23点 |
+
+**定点调度逻辑：**
+- 在整点前后 5 分钟内触发（如 8:00-8:05）
+- 每个时间点每天只触发一次
+- 不要求精确时间，系统每 60 秒检查一次
+
+### 配置示例
+
+```json
+{
+  "sources": [
+    {
+      "id": "kr36_ai",
+      "group": "36kr.com",
+      "command": "python sources/kr36_ai.py",
+      "interval": 20,
+      "enabled": true
+    },
+    {
+      "id": "miit_wjfb",
+      "group": "miit.gov.cn",
+      "command": "python source_gov/miit_wjfb.py",
+      "times": [8, 12, 18, 23],
+      "enabled": true
+    }
+  ]
+}
+```
+
+### 特性
+
+- **同组串行：** 同一 `group`（根域名）内的任务串行执行，避免同站访问过密
+- **配置热更新：** 每次检查周期重新读取 `task_scheduler/sources.json`
 - **日志：** `task_scheduler/scheduler.log`，状态写入 `task_scheduler/state.json`
 
 ```bash
@@ -129,6 +179,30 @@ uv run python scheduler.py
 ```
 
 按 `Ctrl+C` 可安全退出。
+
+---
+
+## 模块四：情报分发 (`distributor/`)
+
+基于 Claude API 的文章摘要与飞书表格分发。
+
+### 功能
+
+1. **AI 摘要**：使用 Claude API 生成文章摘要和要点
+2. **飞书分发**：自动推送到飞书多维表格
+
+### 配置
+
+在 `.env` 中添加：
+
+```env
+CLAUDE_API_KEY=<Claude API Key>
+FEISHU_APP_ID=<飞书应用 ID>
+FEISHU_APP_SECRET=<飞书应用密钥>
+FEISHU_SPREADSHEET_TOKEN=<飞书表格 Token>
+FEISHU_SHEET_ID=<飞书 Sheet ID>
+AUTO_DISTRIBUTE=true
+```
 
 ---
 
@@ -147,7 +221,7 @@ uv run uvicorn processor.app:app --host 0.0.0.0 --port 8000
 # 方式 A：手动运行单个情报源
 uv run python sources/kr36_ai.py
 
-# 方式 B：启动定时调度器（自动按周期运行所有配置的数据源）
+# 方式 B：启动统一调度器（自动按周期/时间点运行所有配置的数据源）
 uv run python scheduler.py
 ```
 
@@ -185,7 +259,7 @@ nohup uv run python scheduler.py > scheduler_stdout.log 2>&1 &
 1. **processor 必须先启动**：sources 抓取到全文后会推送到 processor，若服务未启动，推送会失败（仅记录日志，不影响本地数据存储）。
 2. **API Key 自动生成**：首次启动 processor 时会在 `.env` 中写入 `PROCESSOR_API_KEY`，请勿提交 `.env` 到版本库。
 3. **远程部署**：sources 与 processor 分离部署时，需在 sources 端配置 `PROCESSOR_URL` 和 `PROCESSOR_API_KEY`。
-4. **调度配置**：修改 `task_scheduler/sources.json` 可增删数据源、调整 `group`（根域名，同组串行）或 `enabled` 开关。
+4. **调度配置**：修改 `task_scheduler/sources.json` 可增删数据源、调整 `group`（根域名，同组串行）、`interval`（周期）、`times`（定点）或 `enabled` 开关。
 5. **单任务超时**：scheduler 中每个数据源脚本最长执行 10 分钟，超时会被终止。
 6. **跨平台路径**：代码统一使用 `Path.as_posix()` 输出路径，避免 Windows 反斜杠在 Ubuntu 上产生乱码；建议在 Ubuntu 上部署生产环境。
 
@@ -194,36 +268,50 @@ nohup uv run python scheduler.py > scheduler_stdout.log 2>&1 &
 ## 目录结构
 
 ```
-sources/
-  push_to_processor.py  ← 推送公用模块（读取 .env 认证并发送到 processor）
-  kr36_base.py         ← 36氪通用抓取引擎
-  kr36_ai.py           ← 36氪AI频道
-  kr36_travel.py       ← 36氪汽车频道
-  autohome_base.py     ← 汽车之家通用抓取引擎
-  autohome_all.py      ← 汽车之家全部资讯
-  aibase_base.py       ← AIBase 通用抓取引擎（API 翻页，最多 10 页，按 id 去重）
-  aibase_news.py       ← AIBase 资讯
+sources/                    # 普通新闻资讯数据源
+  push_to_processor.py      ← 推送公用模块
+  kr36_base.py              ← 36氪通用抓取引擎
+  kr36_ai.py                ← 36氪AI频道
+  kr36_travel.py            ← 36氪汽车频道
+  autohome_base.py          ← 汽车之家通用抓取引擎
+  autohome_all.py           ← 汽车之家全部资讯
+  aibase_base.py            ← AIBase 通用抓取引擎
+  aibase_news.py            ← AIBase 资讯
+  dongchedi_base.py         ← 懂车帝通用抓取引擎
+  dongchedi_newcar.py       ← 懂车帝新车资讯
+
+source_gov/                 # 政府文件数据源
+  miit_base.py              ← 工信部通用抓取引擎
+  miit_wjfb.py              ← 工信部文件发布
 
 processor/
-  app.py               ← FastAPI 主服务
-  auth.py              ← API Key 认证
-  database.py          ← SQLite 数据库管理
-  schemas.py           ← Pydantic 数据模型
-  static/              ← Web 前端静态文件（可选）
+  app.py                    ← FastAPI 主服务
+  auth.py                   ← API Key 认证
+  database.py               ← SQLite 数据库管理
+  schemas.py                ← Pydantic 数据模型
+  static/                   ← Web 前端静态文件
+
+distributor/
+  summarizer.py             ← Claude API 摘要
+  feishu.py                 ← 飞书表格推送
+  router.py                 ← 分发路由
 
 task_scheduler/
-  sources.json         ← 调度器数据源配置
-  scheduler.log        ← 调度日志
-  state.json           ← 最近一次执行状态
+  sources.json              ← 调度器数据源配置
+  scheduler.log             ← 调度日志
+  state.json                ← 最近一次执行状态
 
-data/                  ← 情报源运行时数据
+data/                       ← 情报源运行时数据
   kr36_ai/
   kr36_travel/
   autohome_all/
   aibase_news/
+  dongchedi_newcar/
+  miit_wjfb/
 
 data_server/
-  qingbao_zx.db        ← 情报数据库（SQLite）
+  qingbao_zx.db             ← 情报数据库（SQLite）
 
-.env                   ← API Key、PROCESSOR_URL 等配置（自动生成，不入版本库）
+.env                        ← API Key、PROCESSOR_URL 等配置（自动生成，不入版本库）
+scheduler.py                ← 统一调度器
 ```
