@@ -18,6 +18,7 @@ data_server/
 output/
 logs/
 *.log
+*.pid
 task_scheduler/state.json
 task_scheduler/*.log
 

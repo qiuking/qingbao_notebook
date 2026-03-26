@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 统一调度器 — 支持周期调度和定点调度
 
@@ -5,7 +6,7 @@
   - 周期调度: 每 N 分钟运行一次（如每20分钟）
   - 定点调度: 在指定时间点附近运行（如 8:00, 12:00, 18:00, 23:00）
   - 同一网站的任务串行执行（避免触发反爬限制）
-  - 记录日志到 task_scheduler/scheduler.log
+  - 记录日志到 logs/scheduler.log
 
 配置说明:
   - interval: 周期调度，单位分钟（如 20 表示每20分钟）
@@ -18,6 +19,8 @@
 
 import json
 import logging
+import os
+import signal
 import subprocess
 import sys
 import time
@@ -26,11 +29,27 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
+_RUNNING = True
+
+
+def _signal_handler(signum, frame):
+    """信号处理器"""
+    global _RUNNING
+    logging.getLogger("scheduler").info("收到停止信号，正在退出...")
+    _RUNNING = False
+
+
+def _write_pid():
+    """写入 PID 文件"""
+    _PID_FILE.write_text(str(os.getpid()))
+
 _PROJECT_ROOT = Path(__file__).resolve().parent
-_LOG_DIR = _PROJECT_ROOT / "task_scheduler"
-_CONFIG_FILE = _LOG_DIR / "sources.json"
+_LOG_DIR = _PROJECT_ROOT / "logs"
+_CONFIG_DIR = _PROJECT_ROOT / "task_scheduler"
+_CONFIG_FILE = _CONFIG_DIR / "sources.json"
 _LOG_FILE = _LOG_DIR / "scheduler.log"
-_STATE_FILE = _LOG_DIR / "state.json"
+_PID_FILE = _LOG_DIR / "scheduler.pid"
+_STATE_FILE = _CONFIG_DIR / "state.json"
 
 # 默认检查间隔（秒）
 CHECK_INTERVAL = 60
@@ -315,7 +334,13 @@ class TaskQueue:
 
 def run_scheduler():
     """主调度循环"""
+    global _RUNNING
     logger = _init_logging()
+
+    # 注册信号处理
+    signal.signal(signal.SIGINT, _signal_handler)
+    signal.signal(signal.SIGTERM, _signal_handler)
+    _write_pid()
 
     logger.info("=" * 60)
     logger.info("统一调度器启动")
@@ -326,7 +351,7 @@ def run_scheduler():
     state = _load_state()
 
     try:
-        while True:
+        while _RUNNING:
             now = datetime.now()
 
             # 每次循环重新加载配置（支持热更新）
@@ -342,6 +367,8 @@ def run_scheduler():
                 queue = TaskQueue(max_parallel=10)
 
                 for source in sources:
+                    if not _RUNNING:
+                        break
                     # 检查定点调度
                     if _should_run_times(source, state, now):
                         reason = f"定点调度 {now.hour}:00"
@@ -361,12 +388,18 @@ def run_scheduler():
                 _save_state(state, logger)
 
             # 等待下一次检查
-            time.sleep(CHECK_INTERVAL)
+            for _ in range(CHECK_INTERVAL):
+                if not _RUNNING:
+                    break
+                time.sleep(1)
 
-    except KeyboardInterrupt:
-        logger.info("调度器被用户中断")
     except Exception as e:
         logger.exception("调度器异常退出: %s", e)
+
+    finally:
+        if _PID_FILE.exists():
+            _PID_FILE.unlink()
+        logger.info("统一调度器已停止")
 
 
 def _run_tasks(queue: TaskQueue, logger: logging.Logger, state: dict):

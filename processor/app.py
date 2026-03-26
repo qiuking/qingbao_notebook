@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .auth import require_api_key
 from .database import get_db, init_db
+from .llm_client import get_llm_client
 from .schemas import (
     ArticleBatchCreate,
     ArticleCreate,
@@ -29,6 +30,10 @@ from .schemas import (
     ArticleUpdate,
     BatchCreateResult,
     DuplicateCheckResult,
+    LLMChatRequest,
+    LLMChatResponse,
+    LLMSummarizeRequest,
+    LLMSummarizeResponse,
 )
 
 # 前端静态文件目录
@@ -52,7 +57,16 @@ app = FastAPI(
 
 
 def _row_to_dict(row: sqlite3.Row) -> dict:
-    return dict(row)
+    """将数据库行转换为字典，处理 JSON 字段"""
+    import json
+    data = dict(row)
+    # 解析 ai_key_points JSON 字符串
+    if "ai_key_points" in data and isinstance(data["ai_key_points"], str):
+        try:
+            data["ai_key_points"] = json.loads(data["ai_key_points"])
+        except (json.JSONDecodeError, TypeError):
+            data["ai_key_points"] = []
+    return data
 
 
 # ---------------------------------------------------------------------------
@@ -366,13 +380,32 @@ def get_groups(conn: sqlite3.Connection = Depends(get_db)):
 
 @app.get("/api/logs")
 def list_logs():
-    """列出所有可用的日志源（调度器 + 各数据源）。"""
+    """列出所有可用的日志源（调度器 + 各数据源 + LLM客户端）。"""
     sources = []
 
-    sched = _PROJECT_ROOT / "task_scheduler" / "scheduler.log"
+    # 调度器日志
+    sched = _PROJECT_ROOT / "logs" / "scheduler.log"
     if sched.exists():
         mtime = datetime.fromtimestamp(sched.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
         sources.append({"id": "scheduler", "name": "调度器", "mtime": mtime})
+
+    # LLM 客户端日志
+    llm_log = _PROJECT_ROOT / "logs" / "llm_client.log"
+    if llm_log.exists():
+        mtime = datetime.fromtimestamp(llm_log.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+        sources.append({"id": "llm_client", "name": "大模型服务", "mtime": mtime})
+
+    # AI Worker 日志
+    ai_worker_log = _PROJECT_ROOT / "logs" / "ai_worker.log"
+    if ai_worker_log.exists():
+        mtime = datetime.fromtimestamp(ai_worker_log.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+        sources.append({"id": "ai_worker", "name": "AI处理Worker", "mtime": mtime})
+
+    # 分发 Worker 日志
+    dist_worker_log = _PROJECT_ROOT / "logs" / "distribute_worker.log"
+    if dist_worker_log.exists():
+        mtime = datetime.fromtimestamp(dist_worker_log.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+        sources.append({"id": "distribute_worker", "name": "分发Worker", "mtime": mtime})
 
     data_dir = _PROJECT_ROOT / "data"
     if data_dir.exists():
@@ -391,7 +424,13 @@ def get_log_content(log_id: str, lines: int = Query(200, ge=10, le=2000)):
         raise HTTPException(status_code=400, detail="无效的日志ID")
 
     if log_id == "scheduler":
-        log_file = _PROJECT_ROOT / "task_scheduler" / "scheduler.log"
+        log_file = _PROJECT_ROOT / "logs" / "scheduler.log"
+    elif log_id == "llm_client":
+        log_file = _PROJECT_ROOT / "logs" / "llm_client.log"
+    elif log_id == "ai_worker":
+        log_file = _PROJECT_ROOT / "logs" / "ai_worker.log"
+    elif log_id == "distribute_worker":
+        log_file = _PROJECT_ROOT / "logs" / "distribute_worker.log"
     else:
         log_file = _PROJECT_ROOT / "data" / log_id / "logs" / f"{log_id}.log"
 
@@ -408,6 +447,178 @@ def get_log_content(log_id: str, lines: int = Query(200, ge=10, le=2000)):
         "returned_lines": len(tail),
         "lines": tail,
     }
+
+
+# ---------------------------------------------------------------------------
+# LLM API
+# ---------------------------------------------------------------------------
+
+@app.get("/api/llm/status")
+def get_llm_status():
+    """获取 LLM 客户端状态"""
+    client = get_llm_client()
+    return {
+        "available": client.is_available,
+        "config": {
+            "base_url": client.config.base_url if client.is_available else None,
+            "model": client.config.model if client.is_available else None,
+            "thinking": client.config.thinking if client.is_available else None,
+        }
+    }
+
+
+@app.post("/api/llm/chat", response_model=LLMChatResponse)
+def llm_chat(
+    request: LLMChatRequest,
+    _key: str = Depends(require_api_key),
+):
+    """调用 LLM 进行对话"""
+    client = get_llm_client()
+    if not client.is_available:
+        return LLMChatResponse(
+            success=False,
+            output_text="",
+            response=None,
+            usage=None,
+            error="LLM_API_KEY 未配置",
+        )
+
+    result = client.chat(
+        prompt=request.prompt,
+        content=request.content,
+        system_prompt=request.system_prompt,
+        model=request.model,
+        thinking=request.thinking,
+    )
+
+    return LLMChatResponse(
+        success=result["success"],
+        output_text=result.get("output_text", ""),
+        response=result.get("response"),
+        usage=result.get("usage"),
+        error=result.get("error"),
+    )
+
+
+@app.post("/api/llm/summarize", response_model=LLMSummarizeResponse)
+def llm_summarize(
+    request: LLMSummarizeRequest,
+    _key: str = Depends(require_api_key),
+):
+    """调用 LLM 对文章进行摘要"""
+    client = get_llm_client()
+    if not client.is_available:
+        return LLMSummarizeResponse(
+            summary="",
+            key_points=[],
+            category="",
+            full_text="",
+            success=False,
+            error="LLM_API_KEY 未配置",
+        )
+
+    result = client.summarize(
+        title=request.title,
+        content=request.content,
+        system_prompt=request.system_prompt,
+    )
+
+
+    return LLMSummarizeResponse(
+        summary=result.get("summary", ""),
+        key_points=result.get("key_points", []),
+        category=result.get("category", ""),
+        full_text=result.get("full_text", ""),
+        success=result.get("success", False),
+        error=result.get("error"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Worker 状态 API
+# ---------------------------------------------------------------------------
+
+@app.get("/api/workers/status")
+def get_workers_status(conn: sqlite3.Connection = Depends(get_db)):
+    """获取 Worker 处理状态统计"""
+    from .schemas import AIStatusStats, DistributeStatusStats, WorkerStatusResponse
+
+    # AI 处理状态统计
+    ai_rows = conn.execute(
+        "SELECT ai_status, COUNT(*) as count FROM articles GROUP BY ai_status"
+    ).fetchall()
+    ai_stats = {"pending": 0, "processing": 0, "completed": 0, "failed": 0}
+    for row in ai_rows:
+        status = row["ai_status"] or "pending"
+        if status in ai_stats:
+            ai_stats[status] = row["count"]
+    ai_stats["total"] = sum(ai_stats.values())
+
+    # 分发状态统计
+    dist_rows = conn.execute(
+        "SELECT distribute_status, COUNT(*) as count FROM articles GROUP BY distribute_status"
+    ).fetchall()
+    dist_stats = {"pending": 0, "processing": 0, "completed": 0, "failed": 0, "skipped": 0}
+    for row in dist_rows:
+        status = row["distribute_status"] or "pending"
+        if status in dist_stats:
+            dist_stats[status] = row["count"]
+    dist_stats["total"] = sum(dist_stats.values())
+
+    # 检查 Worker 进程是否运行（通过 PID 文件）
+    ai_worker_running = (_PROJECT_ROOT / "logs" / "ai_worker.pid").exists()
+    dist_worker_running = (_PROJECT_ROOT / "logs" / "distribute_worker.pid").exists()
+
+    return WorkerStatusResponse(
+        ai_stats=AIStatusStats(**ai_stats),
+        distribute_stats=DistributeStatusStats(**dist_stats),
+        ai_worker_running=ai_worker_running,
+        distribute_worker_running=dist_worker_running,
+    )
+
+
+@app.post("/api/workers/retry-ai/{article_id}")
+def retry_ai_processing(
+    article_id: int,
+    _key: str = Depends(require_api_key),
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    """重试单篇文章的 AI 处理"""
+    row = conn.execute(
+        "SELECT id FROM articles WHERE id=? AND ai_status='failed'",
+        (article_id,)
+    ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="文章不存在或状态非 failed")
+
+    conn.execute(
+        "UPDATE articles SET ai_status='pending', ai_error='' WHERE id=?",
+        (article_id,)
+    )
+    conn.commit()
+    return {"success": True, "message": f"文章 {article_id} 已重新加入 AI 处理队列"}
+
+
+@app.post("/api/workers/retry-distribute/{article_id}")
+def retry_distribute(
+    article_id: int,
+    _key: str = Depends(require_api_key),
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    """重试单篇文章的分发"""
+    row = conn.execute(
+        "SELECT id FROM articles WHERE id=? AND distribute_status='failed'",
+        (article_id,)
+    ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="文章不存在或状态非 failed")
+
+    conn.execute(
+        "UPDATE articles SET distribute_status='pending', distribute_error='' WHERE id=?",
+        (article_id,)
+    )
+    conn.commit()
+    return {"success": True, "message": f"文章 {article_id} 已重新加入分发队列"}
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,29 @@
+{
+  "enabled": true,
+  "rules": [
+    {
+      "name": "AI资讯",
+      "categories": ["AI", "智能驾驶", "智能座舱"],
+      "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_AI_WEBHOOK",
+      "enabled": true
+    },
+    {
+      "name": "汽车资讯",
+      "categories": ["汽车资讯", "新车发布", "OTA资讯"],
+      "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_CAR_WEBHOOK",
+      "enabled": true
+    },
+    {
+      "name": "政策法规",
+      "categories": ["政策法规"],
+      "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_POLICY_WEBHOOK",
+      "enabled": true
+    },
+    {
+      "name": "默认分发",
+      "categories": ["*"],
+      "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_DEFAULT_WEBHOOK",
+      "enabled": true
+    }
+  ]
+}
